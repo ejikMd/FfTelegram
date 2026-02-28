@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 public class RequestMapService : IRequestService
 {
     private readonly IGeocoder _geocoder;
+    private readonly IStationDetailsService _stationDetailsService;
     private readonly HttpClient _httpClient;
     private readonly string _requestVerificationToken;
     private readonly string _cfClearance;
@@ -17,9 +18,10 @@ public class RequestMapService : IRequestService
     private readonly string _optanonConsent;
     private bool _disposed = false;
 
-    public RequestMapService(IGeocoder geocoder)
+    public RequestMapService(IGeocoder geocoder, IStationDetailsService stationDetailsService)
     {
         _geocoder = geocoder ?? throw new ArgumentNullException(nameof(geocoder));
+        _stationDetailsService = stationDetailsService ?? throw new ArgumentNullException(nameof(stationDetailsService));
 
         // These values should be refreshed periodically
         _requestVerificationToken = "RV_9tJD3J9geShrpLxWI49iFLhLdXgM5c6Wd_lXYG8GwHnjEwGAQQXz90TvgmPMZc2QtPmSt8TINVxxOP5XwiQL6F8_TVX16fadBkpoTJ481";
@@ -35,7 +37,7 @@ public class RequestMapService : IRequestService
         _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("*/*"));
         _httpClient.DefaultRequestHeaders.Add("accept-language", "en-US,en;q=0.9,ru;q=0.8,ro;q=0.7,fr;q=0.6,sv;q=0.5");
         _httpClient.DefaultRequestHeaders.Add("__requestverificationtoken", _requestVerificationToken);
-        //_httpClient.DefaultRequestHeaders.Add("content-type", "application/json; charset=UTF-8");
+        _httpClient.DefaultRequestHeaders.Add("content-type", "application/json; charset=UTF-8");
         _httpClient.DefaultRequestHeaders.Add("dnt", "1");
         _httpClient.DefaultRequestHeaders.Add("origin", "https://www.gasbuddy.com");
         _httpClient.DefaultRequestHeaders.Add("priority", "u=1, i");
@@ -85,7 +87,7 @@ public class RequestMapService : IRequestService
             Console.WriteLine($"Geocoded {startAddress} to coordinates: {latitude}, {longitude}");
 
             // Get gas stations using the coordinates
-            return await GetGasStationsByCoordinatesAsync(latitude, longitude);
+            return await GetGasStationsByCoordinatesAsync(latitude, longitude, cursor);
         }
         catch (Exception ex)
         {
@@ -94,7 +96,7 @@ public class RequestMapService : IRequestService
         }
     }
 
-    private async Task<List<FuelStation>> GetGasStationsByCoordinatesAsync(double latitude, double longitude)
+    private async Task<List<FuelStation>> GetGasStationsByCoordinatesAsync(double latitude, double longitude, int cursor)
     {
         try
         {
@@ -145,6 +147,7 @@ public class RequestMapService : IRequestService
             }
 
             var result = new List<FuelStation>();
+            var stationIds = new HashSet<int>(); // To avoid duplicates
 
             // Process primary stations (closest/most relevant)
             if (mapResponse.primaryStations != null)
@@ -155,35 +158,44 @@ public class RequestMapService : IRequestService
                     if (station.price == "--" || string.IsNullOrEmpty(station.price))
                         continue;
 
-                    if (decimal.TryParse(station.price, out decimal price))
+                    if (decimal.TryParse(station.price, out decimal price) && !stationIds.Contains(station.id))
                     {
-                        // We'll add a placeholder name - this will be resolved later by a separate service
+                        stationIds.Add(station.id);
+
+                        // Get detailed station information
+                        var details = await _stationDetailsService.GetStationDetailsAsync(station.id);
+
                         result.Add(new FuelStation(
-                            $"Station ID: {station.id}",
-                            $"Coordinates: {station.lat}, {station.lng}",
-                            price / 100 // Convert from cents to dollars if needed
+                            details.Name,
+                            details.Address,
+                            price // Keep original price (not divided by 100)
                         ));
                     }
                 }
             }
 
             // Also add secondary stations if we need more results
-            if (result.Count < 10 && mapResponse.secondaryStations != null)
+            if (result.Count < 15 && mapResponse.secondaryStations != null)
             {
                 foreach (var station in mapResponse.secondaryStations)
                 {
                     if (station.price == "--" || string.IsNullOrEmpty(station.price))
                         continue;
 
-                    if (decimal.TryParse(station.price, out decimal price))
+                    if (decimal.TryParse(station.price, out decimal price) && !stationIds.Contains(station.id))
                     {
+                        stationIds.Add(station.id);
+
+                        // Get detailed station information
+                        var details = await _stationDetailsService.GetStationDetailsAsync(station.id);
+
                         result.Add(new FuelStation(
-                            $"Station ID: {station.id}",
-                            $"Coordinates: {station.lat}, {station.lng}",
-                            price / 100
+                            details.Name,
+                            details.Address,
+                            price // Keep original price (not divided by 100)
                         ));
 
-                        if (result.Count >= 15) break; // Limit total results
+                        if (result.Count >= 20) break; // Limit total results
                     }
                 }
             }
@@ -240,13 +252,14 @@ public class RequestMapService : IRequestService
             {
                 _httpClient?.Dispose();
                 _geocoder?.Dispose();
+                _stationDetailsService?.Dispose();
             }
             _disposed = true;
         }
     }
 }
 
-// Response model classes
+// Response model classes (keep these at the bottom)
 public class GasPriceMapResponse
 {
     public List<GasStationMapItem> primaryStations { get; set; } = new List<GasStationMapItem>();

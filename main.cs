@@ -46,9 +46,11 @@ class Program
         // Option 3: Use OpenStreetMap (free, no API key, but rate limited)
         // IGeocoder geocoder = new OpenStreetMapGeocoderService();
         
+        IStationDetailsService stationDetailsService = new GasBuddyStationDetailsService();
+        
         // Initialize services
         //_requestService = new RequestService();
-        _requestService = new RequestMapService(geocoder);
+        _requestService = new RequestMapService(geocoder, stationDetailsService);
         _gasStationFinder = new GasStationFinder(_requestService);
 
         // Handle Ctrl+C gracefully
