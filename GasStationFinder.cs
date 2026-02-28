@@ -22,9 +22,9 @@ public class GasStationFinder
 
             if (allStations == null || allStations.Count == 0)
             {
-                return $"⛽ <b>No Gas Stations Found</b>\n\n" +
-                       $"🔍 Searching for: <i>{searchGas}</i>\n\n" +
-                       $"😕 No stations found. Please try a different location.";
+                return $"?? <b>No Gas Stations Found</b>\n\n" +
+                       $"?? Searching for: <i>{searchGas}</i>\n\n" +
+                       $"?? No stations found. Please try a different location.";
             }
 
             var sb = new StringBuilder();
@@ -32,8 +32,8 @@ public class GasStationFinder
             int cursorStep = 5;
 
             // Add header
-            sb.AppendLine("⛽ <b>Gas Stations Found</b>");
-            sb.AppendLine($"🔍 Searching for: <i>{searchGas}</i>");
+            sb.AppendLine("?? <b>Gas Stations Found</b>");
+            sb.AppendLine($"?? Searching for: <i>{searchGas}</i>");
             sb.AppendLine();
 
             // Create table header
@@ -57,29 +57,29 @@ public class GasStationFinder
             sb.AppendLine();
 
             // Add summary information
-            sb.AppendLine($"📊 Found {allStations.Count} total stations");
-            sb.AppendLine($"📋 Showing first {displayCount} stations");
+            sb.AppendLine($"?? Found {allStations.Count} total stations");
+            sb.AppendLine($"?? Showing first {displayCount} stations");
 
             if (allStations.Count > displayCount)
             {
                 int remainingPages = (int)Math.Ceiling((double)(allStations.Count - displayCount) / expectedPerPage);
-                sb.AppendLine($"➕ {allStations.Count - displayCount} more stations available (about {remainingPages} more page{(remainingPages > 1 ? "s" : "")})");
+                sb.AppendLine($"?? {allStations.Count - displayCount} more stations available (about {remainingPages} more page{(remainingPages > 1 ? "s" : "")})");
             }
 
             // Calculate pagination info
             int pagesLoaded = (int)Math.Ceiling((double)allStations.Count / expectedPerPage);
             int maxCursor = Math.Max(0, (pagesLoaded - 1) * cursorStep);
 
-            sb.AppendLine($"🔄 Prices updated: " + DateTime.Now.ToString("MM/dd/yyyy HH:mm"));
-            sb.AppendLine($"📡 Pages loaded: {pagesLoaded} (cursor steps: 0 to {maxCursor})");
-            sb.AppendLine($"⚙️ Cursor step size: {cursorStep}");
-            sb.AppendLine($"📄 Stations per page: {expectedPerPage}");
+            sb.AppendLine($"?? Prices updated: " + DateTime.Now.ToString("MM/dd/yyyy HH:mm"));
+            sb.AppendLine($"?? Pages loaded: {pagesLoaded} (cursor steps: 0 to {maxCursor})");
+            sb.AppendLine($"?? Cursor step size: {cursorStep}");
+            sb.AppendLine($"?? Stations per page: {expectedPerPage}");
 
             return sb.ToString();
         }
         catch (Exception ex)
         {
-            return $"⛽ <b>Error</b>\n\n" +
+            return $"?? <b>Error</b>\n\n" +
                    $"Sorry, an error occurred while searching for gas stations:\n" +
                    $"<i>{ex.Message}</i>\n\n" +
                    $"Please try again later.";
