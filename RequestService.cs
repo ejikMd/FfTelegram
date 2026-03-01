@@ -62,8 +62,9 @@ public class RequestService : IRequestService
         _httpClient.DefaultRequestHeaders.Add("Cookie", cookieHeader);
     }
 
-    public async Task<List<FuelStation>> GetDataAsync(string startAddress, int cursor = 0)
+    public async Task<List<FuelStation>> GetDataAsync(string startAddress)
     {
+        int cursor = 0;        
         try
         {
             var allStations = new List<FuelStation>();

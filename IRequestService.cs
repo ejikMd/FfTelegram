@@ -4,5 +4,5 @@ using System.Threading.Tasks;
 
 public interface IRequestService : IDisposable
 {
-    Task<List<FuelStation>> GetDataAsync(string startAddress, int cursor = 0);
+    Task<List<FuelStation>> GetDataAsync(string startAddress);
 }

@@ -1,29 +1,68 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Net;
 using System.Net.Http;
-using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
+using System.Linq;
 
 public class RequestMapService : IRequestService
 {
     private readonly IGeocoder _geocoder;
     private readonly IStationDetailsService _stationDetailsService;
-    private readonly HttpClient _httpClient;
+    private readonly GasBuddyHttpClientBuilder _httpClientBuilder;
+    private HttpClient _currentHttpClient;
+    private readonly object _clientLock = new object();
+    private readonly Random _random = new Random();
+    private readonly SemaphoreSlim _requestThrottler = new SemaphoreSlim(1, 1);
+    private DateTime _lastRequestTime = DateTime.MinValue;
     private bool _disposed = false;
 
-    public RequestMapService(IGeocoder geocoder, IStationDetailsService stationDetailsService)
+    public RequestMapService(
+        IGeocoder geocoder, 
+        IStationDetailsService stationDetailsService,
+        GasBuddyHttpClientBuilder httpClientBuilder)
     {
         _geocoder = geocoder ?? throw new ArgumentNullException(nameof(geocoder));
         _stationDetailsService = stationDetailsService ?? throw new ArgumentNullException(nameof(stationDetailsService));
+        _httpClientBuilder = httpClientBuilder ?? throw new ArgumentNullException(nameof(httpClientBuilder));
 
-        _httpClient = new GasBuddyHttpClientBuilder().Build();
+        // Create initial client
+        _currentHttpClient = _httpClientBuilder.CreateClient();
+
+        // Schedule periodic proxy refresh (every 30 minutes)
+        Task.Run(async () =>
+        {
+            while (!_disposed)
+            {
+                try
+                {
+                    await Task.Delay(TimeSpan.FromMinutes(30));
+                    if (_disposed) break;
+
+                    Console.WriteLine("Refreshing proxy list...");
+                    _httpClientBuilder.RefreshProxies();
+
+                    // Create new client with fresh proxy
+                    lock (_clientLock)
+                    {
+                        var oldClient = _currentHttpClient;
+                        _currentHttpClient = _httpClientBuilder.CreateClient();
+                        oldClient?.Dispose();
+                        Console.WriteLine("Created new HTTP client with fresh proxy");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error in proxy refresh task: {ex.Message}");
+                }
+            }
+        });
     }
 
-    public async Task<List<FuelStation>> GetDataAsync(string startAddress, int cursor = 0)
+    public async Task<List<FuelStation>> GetDataAsync(string startAddress)
     {
         try
         {
@@ -39,7 +78,7 @@ public class RequestMapService : IRequestService
             Console.WriteLine($"Geocoded {startAddress} to coordinates: {latitude}, {longitude}");
 
             // Get gas stations using the coordinates
-            return await GetGasStationsByCoordinatesAsync(latitude, longitude, cursor);
+            return await GetGasStationsByCoordinatesAsync(latitude, longitude);
         }
         catch (Exception ex)
         {
@@ -48,8 +87,11 @@ public class RequestMapService : IRequestService
         }
     }
 
-    private async Task<List<FuelStation>> GetGasStationsByCoordinatesAsync(double latitude, double longitude, int cursor)
+    private async Task<List<FuelStation>> GetGasStationsByCoordinatesAsync(double latitude, double longitude)
     {
+        // Add random delay before starting (3-7 seconds)
+        await Task.Delay(3000 + _random.Next(4000));
+
         try
         {
             // Define a bounding box around the coordinates (approximately 5km x 5km area)
@@ -122,6 +164,9 @@ public class RequestMapService : IRequestService
                             details.Address,
                             price // Keep original price (not divided by 100)
                         ));
+
+                        // Small delay between detail requests to avoid rate limiting
+                        await Task.Delay(500 + _random.Next(1000));
                     }
                 }
             }
@@ -147,12 +192,19 @@ public class RequestMapService : IRequestService
                             price // Keep original price (not divided by 100)
                         ));
 
+                        // Small delay between detail requests
+                        await Task.Delay(500 + _random.Next(1000));
+
                         if (result.Count >= 20) break; // Limit total results
                     }
                 }
             }
 
             Console.WriteLine($"Found {result.Count} stations with prices");
+
+            // Add delay after successful request (2-5 seconds)
+            await Task.Delay(2000 + _random.Next(3000));
+
             return result;
         }
         catch (Exception ex)
@@ -170,13 +222,31 @@ public class RequestMapService : IRequestService
 
         while (retryCount < maxRetries)
         {
+            // Implement throttling
+            await _requestThrottler.WaitAsync();
             try
             {
+                // Ensure minimum time between requests (5 seconds)
+                var timeSinceLastRequest = DateTime.UtcNow - _lastRequestTime;
+                if (timeSinceLastRequest.TotalSeconds < 5)
+                {
+                    var delayMs = (int)((5 - timeSinceLastRequest.TotalSeconds) * 1000) + _random.Next(1000, 3000);
+                    Console.WriteLine($"Throttling: Waiting {delayMs}ms before next request");
+                    await Task.Delay(delayMs);
+                }
+
+                HttpClient client;
+                lock (_clientLock)
+                {
+                    client = _currentHttpClient;
+                }
+
                 using var request = new HttpRequestMessage(HttpMethod.Post, url);
                 request.Content = new StringContent(data, Encoding.UTF8, "application/json");
                 request.Headers.Referrer = new Uri($"https://www.gasbuddy.com/gaspricemap?fuel=1&z=14&lat=45.4580767734426&lng=-73.4545422846292");
 
-                var response = await _httpClient.SendAsync(request);
+                var response = await client.SendAsync(request);
+                _lastRequestTime = DateTime.UtcNow;
 
                 if (response.IsSuccessStatusCode)
                 {
@@ -186,36 +256,81 @@ public class RequestMapService : IRequestService
                 if (response.StatusCode == (HttpStatusCode)429)
                 {
                     retryCount++;
+                    Console.WriteLine($"Rate limited (429). Attempt {retryCount}/{maxRetries}");
 
                     // Check for Retry-After header
                     if (response.Headers.TryGetValues("Retry-After", out var retryAfterValues))
                     {
                         if (int.TryParse(retryAfterValues.FirstOrDefault(), out int retryAfterSeconds))
                         {
-                            Console.WriteLine($"Rate limited. Retry-After: {retryAfterSeconds}s. Attempt {retryCount}/{maxRetries}");
+                            Console.WriteLine($"Server requested Retry-After: {retryAfterSeconds}s");
                             await Task.Delay(retryAfterSeconds * 1000);
                             continue;
                         }
                     }
 
+                    // If we're using proxies, mark this proxy as failed and get a new one
+                    if (_httpClientBuilder != null)
+                    {
+                        try
+                        {
+                            // Try to get the proxy from the current client
+                            var handlerField = client.GetType().GetProperty("Handler");
+                            if (handlerField != null)
+                            {
+                                var handler = handlerField.GetValue(client) as HttpClientHandler;
+                                var proxy = handler?.Proxy as WebProxy;
+                                if (proxy != null)
+                                {
+                                    Console.WriteLine($"Marking proxy {proxy.Address} as failed due to rate limit");
+                                    _httpClientBuilder.MarkProxyFailure(proxy);
+
+                                    // Create new client with different proxy
+                                    lock (_clientLock)
+                                    {
+                                        var oldClient = _currentHttpClient;
+                                        _currentHttpClient = _httpClientBuilder.CreateClient();
+                                        oldClient?.Dispose();
+                                        Console.WriteLine("Created new HTTP client with different proxy");
+                                    }
+                                }
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Error while handling proxy failure: {ex.Message}");
+                        }
+                    }
+
                     // Exponential backoff with jitter
-                    int delayMs = (int)(baseDelayMs * Math.Pow(2, retryCount - 1) * (0.8 + 0.4 * new Random().NextDouble()));
-                    Console.WriteLine($"Rate limited. Waiting {delayMs}ms before retry {retryCount}/{maxRetries}");
+                    int delayMs = (int)(baseDelayMs * Math.Pow(2, retryCount - 1) * (0.8 + 0.4 * _random.NextDouble()));
+                    Console.WriteLine($"Exponential backoff: Waiting {delayMs}ms before retry");
                     await Task.Delay(delayMs);
                     continue;
                 }
 
                 // Handle other error status codes
                 string errorContent = await response.Content.ReadAsStringAsync();
-                Console.WriteLine($"Error response: {errorContent}");
+                Console.WriteLine($"Error response ({response.StatusCode}): {errorContent}");
+
+                // Don't retry on client errors (4xx) except 429
+                if ((int)response.StatusCode >= 400 && (int)response.StatusCode < 500 && response.StatusCode != (HttpStatusCode)429)
+                {
+                    throw new HttpRequestException($"Client error: {response.StatusCode} - {errorContent}");
+                }
+
                 response.EnsureSuccessStatusCode();
             }
             catch (Exception ex) when (retryCount < maxRetries - 1)
             {
                 retryCount++;
-                int delayMs = (int)(baseDelayMs * Math.Pow(2, retryCount - 1) * (0.8 + 0.4 * new Random().NextDouble()));
+                int delayMs = (int)(baseDelayMs * Math.Pow(2, retryCount - 1) * (0.8 + 0.4 * _random.NextDouble()));
                 Console.WriteLine($"Request failed: {ex.Message}. Retry {retryCount}/{maxRetries} in {delayMs}ms");
                 await Task.Delay(delayMs);
+            }
+            finally
+            {
+                _requestThrottler.Release();
             }
         }
 
@@ -234,7 +349,8 @@ public class RequestMapService : IRequestService
         {
             if (disposing)
             {
-                _httpClient?.Dispose();
+                _currentHttpClient?.Dispose();
+                _requestThrottler?.Dispose();
                 _geocoder?.Dispose();
                 _stationDetailsService?.Dispose();
             }

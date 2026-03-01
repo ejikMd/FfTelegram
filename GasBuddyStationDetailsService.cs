@@ -12,7 +12,10 @@ public class GasBuddyStationDetailsService : IStationDetailsService
 
     public GasBuddyStationDetailsService()
     {
-        _httpClient = new GasBuddyHttpClientBuilder().Build();
+        bool useProxyRotation = true; // Set to false if you want to test without proxies
+        var httpClientBuilder = new GasBuddyHttpClientBuilder(useProxyRotation: useProxyRotation);
+        
+        _httpClient = httpClientBuilder.CreateClient();
     }
 
     public async Task<StationDetails> GetStationDetailsAsync(int stationId)

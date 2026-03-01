@@ -47,10 +47,15 @@ class Program
         // IGeocoder geocoder = new OpenStreetMapGeocoderService();
         
         IStationDetailsService stationDetailsService = new GasBuddyStationDetailsService();
+
+        // In your Program.cs or startup code
+        bool useProxyRotation = true; // Set to false if you want to test without proxies
+
+        var httpClientBuilder = new GasBuddyHttpClientBuilder(useProxyRotation: useProxyRotation);
         
         // Initialize services
         //_requestService = new RequestService();
-        _requestService = new RequestMapService(geocoder, stationDetailsService);
+        _requestService = new RequestMapService(geocoder, stationDetailsService, httpClientBuilder);
         _gasStationFinder = new GasStationFinder(_requestService);
 
         // Handle Ctrl+C gracefully
