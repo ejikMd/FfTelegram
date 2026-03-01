@@ -65,6 +65,7 @@ public class GasBuddyHttpClientBuilder
         {
             // Add a small random delay (500ms to 1500ms) to simulate human behavior
             int delay = _random.Next(500, 1500);
+            Console.WriteLine($"Adding delay of {delay}ms to request");
             await Task.Delay(delay, cancellationToken);
             return await base.SendAsync(request, cancellationToken);
         }

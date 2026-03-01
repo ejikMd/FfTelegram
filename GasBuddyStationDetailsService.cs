@@ -77,7 +77,8 @@ public class GasBuddyStationDetailsService : IStationDetailsService
             {
                 fullAddress += $" {station.ZipCode}";
             }
-
+            
+            Console.WriteLine($"Information found for station: {stationId}, name {station.Name}");
             return new StationDetails
             {
                 Id = station.Id,
