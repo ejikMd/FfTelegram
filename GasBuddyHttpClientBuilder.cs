@@ -2,6 +2,8 @@ using System;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Threading;
+using System.Threading.Tasks;
 
 public class GasBuddyHttpClientBuilder
 {
@@ -13,7 +15,8 @@ public class GasBuddyHttpClientBuilder
 
     public HttpClient Build()
     {
-        var httpClient = new HttpClient();
+        var handler = new DelayHandler(new HttpClientHandler());
+        var httpClient = new HttpClient(handler);
         httpClient.BaseAddress = new Uri("https://www.gasbuddy.com");
 
         httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("*/*"));
@@ -50,5 +53,20 @@ public class GasBuddyHttpClientBuilder
 
         httpClient.DefaultRequestHeaders.Add("Cookie", cookieHeader);
         return httpClient;
+    }
+
+    private class DelayHandler : DelegatingHandler
+    {
+        private readonly Random _random = new Random();
+
+        public DelayHandler(HttpMessageHandler innerHandler) : base(innerHandler) { }
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            // Add a small random delay (500ms to 1500ms) to simulate human behavior
+            int delay = _random.Next(500, 1500);
+            await Task.Delay(delay, cancellationToken);
+            return await base.SendAsync(request, cancellationToken);
+        }
     }
 }
