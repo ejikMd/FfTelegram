@@ -218,7 +218,8 @@ class Program
 
         app.MapGet("/check", async context =>
         {
-            var result = await _gasStationFinder.FindAsync("H8N2P7");
+            Console.WriteLine($"Running test on H8N2P7");
+            var stations = await _gasStationFinder.FindAsync("H8N2P7");
             
             await context.Response.WriteAsJsonAsync(new
             {
@@ -227,7 +228,7 @@ class Program
                 messagesProcessed = _messagesProcessed,
                 timestamp = DateTime.UtcNow,
                 isShuttingDown = _isShuttingDown,
-                result = result
+                result = stations
             });
         });
 
