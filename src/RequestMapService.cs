@@ -12,7 +12,6 @@ public class RequestMapService : IRequestService
 {
     private readonly IGeocoder _geocoder;
     private readonly IStationDetailsService _stationDetailsService;
-    private readonly GasBuddyHttpClientBuilder _httpClientBuilder;
     private HttpClient _currentHttpClient;
     private readonly object _clientLock = new object();
     private readonly Random _random = new Random();
@@ -22,44 +21,13 @@ public class RequestMapService : IRequestService
 
     public RequestMapService(
         IGeocoder geocoder, 
-        IStationDetailsService stationDetailsService,
-        GasBuddyHttpClientBuilder httpClientBuilder)
+        IStationDetailsService stationDetailsService)
     {
         _geocoder = geocoder ?? throw new ArgumentNullException(nameof(geocoder));
         _stationDetailsService = stationDetailsService ?? throw new ArgumentNullException(nameof(stationDetailsService));
-        _httpClientBuilder = httpClientBuilder ?? throw new ArgumentNullException(nameof(httpClientBuilder));
 
-        // Create initial client
-        _currentHttpClient = _httpClientBuilder.CreateClient();
-
-        // Schedule periodic proxy refresh (every 30 minutes)
-        Task.Run(async () =>
-        {
-            while (!_disposed)
-            {
-                try
-                {
-                    await Task.Delay(TimeSpan.FromMinutes(30));
-                    if (_disposed) break;
-
-                    Console.WriteLine("Refreshing proxy list...");
-                    _httpClientBuilder.RefreshProxies();
-
-                    // Create new client with fresh proxy
-                    lock (_clientLock)
-                    {
-                        var oldClient = _currentHttpClient;
-                        _currentHttpClient = _httpClientBuilder.CreateClient();
-                        oldClient?.Dispose();
-                        Console.WriteLine("Created new HTTP client with fresh proxy");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Error in proxy refresh task: {ex.Message}");
-                }
-            }
-        });
+        // Use the static shared client
+        _currentHttpClient = GasBuddyHttpClientBuilder.GetClient();
     }
 
     public async Task<List<FuelStation>> GetDataAsync(string startAddress)
@@ -146,6 +114,7 @@ public class RequestMapService : IRequestService
             // Process primary stations (closest/most relevant)
             if (mapResponse.primaryStations != null)
             {
+                Console.WriteLine($"Received {mapResponse.primaryStations.Count} primary stations ");
                 foreach (var station in mapResponse.primaryStations)
                 {
                     // Skip stations without valid price
@@ -266,39 +235,6 @@ public class RequestMapService : IRequestService
                             Console.WriteLine($"Server requested Retry-After: {retryAfterSeconds}s");
                             await Task.Delay(retryAfterSeconds * 1000);
                             continue;
-                        }
-                    }
-
-                    // If we're using proxies, mark this proxy as failed and get a new one
-                    if (_httpClientBuilder != null)
-                    {
-                        try
-                        {
-                            // Try to get the proxy from the current client
-                            var handlerField = client.GetType().GetProperty("Handler");
-                            if (handlerField != null)
-                            {
-                                var handler = handlerField.GetValue(client) as HttpClientHandler;
-                                var proxy = handler?.Proxy as WebProxy;
-                                if (proxy != null)
-                                {
-                                    Console.WriteLine($"Marking proxy {proxy.Address} as failed due to rate limit");
-                                    _httpClientBuilder.MarkProxyFailure(proxy);
-
-                                    // Create new client with different proxy
-                                    lock (_clientLock)
-                                    {
-                                        var oldClient = _currentHttpClient;
-                                        _currentHttpClient = _httpClientBuilder.CreateClient();
-                                        oldClient?.Dispose();
-                                        Console.WriteLine("Created new HTTP client with different proxy");
-                                    }
-                                }
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.WriteLine($"Error while handling proxy failure: {ex.Message}");
                         }
                     }
 
