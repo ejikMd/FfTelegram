@@ -251,25 +251,8 @@ public class RequestMapService : IRequestService
 
                 if (response.StatusCode == (HttpStatusCode)429)
                 {
-                    retryCount++;
-                    Console.WriteLine($"Rate limited (429). Attempt {retryCount}/{maxRetries}");
-
-                    // Check for Retry-After header
-                    if (response.Headers.TryGetValues("Retry-After", out var retryAfterValues))
-                    {
-                        if (int.TryParse(retryAfterValues.FirstOrDefault(), out int retryAfterSeconds))
-                        {
-                            Console.WriteLine($"Server requested Retry-After: {retryAfterSeconds}s");
-                            await Task.Delay(retryAfterSeconds * 1000);
-                            continue;
-                        }
-                    }
-
-                    // Exponential backoff with jitter
-                    int delayMs = (int)(baseDelayMs * Math.Pow(2, retryCount - 1) * (0.8 + 0.4 * _random.NextDouble()));
-                    Console.WriteLine($"Exponential backoff: Waiting {delayMs}ms before retry");
-                    await Task.Delay(delayMs);
-                    continue;
+                    Console.WriteLine("Rate limited (429). Stopping processing as requested.");
+                    throw new HttpRequestException("Rate limited (429)", null, HttpStatusCode.TooManyRequests);
                 }
 
                 // Handle other error status codes
