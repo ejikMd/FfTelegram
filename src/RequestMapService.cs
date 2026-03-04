@@ -20,7 +20,7 @@ public class RequestMapService : IRequestService
     private bool _disposed = false;
 
     public RequestMapService(
-        IGeocoder geocoder, 
+        IGeocoder geocoder,
         IStationDetailsService stationDetailsService)
     {
         _geocoder = geocoder ?? throw new ArgumentNullException(nameof(geocoder));
@@ -184,9 +184,18 @@ public class RequestMapService : IRequestService
         }
     }
 
-    private int _requestCount = 0;
+    private static int _requestCount = 0;
+    private static readonly object _countLock = new object();
     private const int DelayThreshold = 9;
     private const int LongDelayMs = 5000;
+
+    public static void IncrementRequestCount()
+    {
+        lock (_countLock)
+        {
+            _requestCount++;
+        }
+    }
 
     private async Task<string> PostJsonAsync(string url, string data)
     {
@@ -200,8 +209,14 @@ public class RequestMapService : IRequestService
             await _requestThrottler.WaitAsync();
             try
             {
-                _requestCount++;
-                if (_requestCount % (DelayThreshold + 1) == 0)
+                IncrementRequestCount();
+                int currentCount;
+                lock (_countLock)
+                {
+                    currentCount = _requestCount;
+                }
+
+                if (currentCount % (DelayThreshold + 1) == 0)
                 {
                     Console.WriteLine($"Throttling: 9th request reached. Waiting {LongDelayMs}ms");
                     await Task.Delay(LongDelayMs);

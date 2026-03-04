@@ -19,6 +19,7 @@ public class GasBuddyStationDetailsService : IStationDetailsService
     {
         try
         {
+            RequestMapService.IncrementRequestCount();
             string url = "https://www.gasbuddy.com/gaspricemap/station";
 
             // Create payload based on the curl example
