@@ -143,6 +143,7 @@ public class RequestMapService : IRequestService
             // Also add secondary stations if we need more results
             if (result.Count < 15 && mapResponse.secondaryStations != null)
             {
+                Console.WriteLine($"Received {mapResponse.secondaryStations.Count} secondary stations ");
                 foreach (var station in mapResponse.secondaryStations)
                 {
                     if (station.price == "--" || string.IsNullOrEmpty(station.price))
@@ -183,6 +184,10 @@ public class RequestMapService : IRequestService
         }
     }
 
+    private int _requestCount = 0;
+    private const int DelayThreshold = 9;
+    private const int LongDelayMs = 5000;
+
     private async Task<string> PostJsonAsync(string url, string data)
     {
         int maxRetries = 5;
@@ -195,6 +200,13 @@ public class RequestMapService : IRequestService
             await _requestThrottler.WaitAsync();
             try
             {
+                _requestCount++;
+                if (_requestCount % (DelayThreshold + 1) == 0)
+                {
+                    Console.WriteLine($"Throttling: 9th request reached. Waiting {LongDelayMs}ms");
+                    await Task.Delay(LongDelayMs);
+                }
+
                 // Ensure minimum time between requests (5 seconds)
                 var timeSinceLastRequest = DateTime.UtcNow - _lastRequestTime;
                 if (timeSinceLastRequest.TotalSeconds < 5)

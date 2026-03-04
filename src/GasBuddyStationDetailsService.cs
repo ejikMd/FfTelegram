@@ -43,6 +43,7 @@ public class GasBuddyStationDetailsService : IStationDetailsService
             if (!response.IsSuccessStatusCode)
             {
                 string errorContent = await response.Content.ReadAsStringAsync();
+                errorContent = errorContent.Substring(0, Math.Min(errorContent.Length, 200));
                 Console.WriteLine($"Error response from station details: {errorContent}");
                 return CreateFallbackStationDetails(stationId);
             }
@@ -77,7 +78,7 @@ public class GasBuddyStationDetailsService : IStationDetailsService
             {
                 fullAddress += $" {station.ZipCode}";
             }
-            
+
             Console.WriteLine($"Information found for station: {stationId}, name {station.Name}");
             return new StationDetails
             {
