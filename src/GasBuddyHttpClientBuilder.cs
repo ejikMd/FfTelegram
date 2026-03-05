@@ -89,4 +89,5 @@ public static class GasBuddyHttpClientBuilder
     {
         // Placeholder for proxy refresh logic if needed
     }
+
 }

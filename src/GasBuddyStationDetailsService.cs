@@ -7,20 +7,20 @@ using System.Threading.Tasks;
 
 public class GasBuddyStationDetailsService : IStationDetailsService
 {
-    private readonly HttpClient _httpClient;
+    private readonly GasBuddyHttpClient _gasBuddyClient;
     private bool _disposed = false;
 
     public GasBuddyStationDetailsService()
     {
-        _httpClient = GasBuddyHttpClientBuilder.GetClient();
+        _gasBuddyClient = new GasBuddyHttpClient();
     }
 
     public async Task<StationDetails> GetStationDetailsAsync(int stationId)
     {
         try
         {
-            RequestMapService.IncrementRequestCount();
             string url = "https://www.gasbuddy.com/gaspricemap/station";
+            string referrer = "https://www.gasbuddy.com/gaspricemap?fuel=1&z=14&lat=45.4580767734426&lng=-73.4545422846292";
 
             // Create payload based on the curl example
             var payload = new
@@ -31,25 +31,7 @@ public class GasBuddyStationDetailsService : IStationDetailsService
 
             string jsonPayload = JsonSerializer.Serialize(payload);
 
-            using var request = new HttpRequestMessage(HttpMethod.Post, url);
-
-            // Set content with content-type header
-            request.Content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
-
-            // Add referer header
-            request.Headers.Referrer = new Uri($"https://www.gasbuddy.com/gaspricemap?fuel=1&z=14&lat=45.4580767734426&lng=-73.4545422846292");
-
-            var response = await _httpClient.SendAsync(request);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                string errorContent = await response.Content.ReadAsStringAsync();
-                errorContent = errorContent.Substring(0, Math.Min(errorContent.Length, 200));
-                Console.WriteLine($"Error response from station details: {errorContent}");
-                return CreateFallbackStationDetails(stationId);
-            }
-
-            string jsonResponse = await response.Content.ReadAsStringAsync();
+            string jsonResponse = await _gasBuddyClient.PostJsonAsync(url, jsonPayload, referrer);
 
             var options = new JsonSerializerOptions
             {
@@ -131,7 +113,7 @@ public class GasBuddyStationDetailsService : IStationDetailsService
         {
             if (disposing)
             {
-                _httpClient?.Dispose();
+                _gasBuddyClient?.Dispose();
             }
             _disposed = true;
         }

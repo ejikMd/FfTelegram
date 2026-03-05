@@ -12,11 +12,8 @@ public class RequestMapService : IRequestService
 {
     private readonly IGeocoder _geocoder;
     private readonly IStationDetailsService _stationDetailsService;
-    private HttpClient _currentHttpClient;
-    private readonly object _clientLock = new object();
+    private readonly GasBuddyHttpClient _gasBuddyClient;
     private readonly Random _random = new Random();
-    private readonly SemaphoreSlim _requestThrottler = new SemaphoreSlim(1, 1);
-    private DateTime _lastRequestTime = DateTime.MinValue;
     private bool _disposed = false;
 
     public RequestMapService(
@@ -25,9 +22,7 @@ public class RequestMapService : IRequestService
     {
         _geocoder = geocoder ?? throw new ArgumentNullException(nameof(geocoder));
         _stationDetailsService = stationDetailsService ?? throw new ArgumentNullException(nameof(stationDetailsService));
-
-        // Use the static shared client
-        _currentHttpClient = GasBuddyHttpClientBuilder.GetClient();
+        _gasBuddyClient = new GasBuddyHttpClient();
     }
 
     public async Task<List<FuelStation>> GetDataAsync(string startAddress)
@@ -85,10 +80,11 @@ public class RequestMapService : IRequestService
 
             string jsonPayload = JsonSerializer.Serialize(payload);
             string url = "https://www.gasbuddy.com/gaspricemap/map";
+            string referrer = "https://www.gasbuddy.com/gaspricemap?fuel=1&z=14&lat=45.4580767734426&lng=-73.4545422846292";
 
             Console.WriteLine($"Requesting gas stations in bounding box: {minLat},{minLng} to {maxLat},{maxLng}");
 
-            string response = await PostJsonAsync(url, jsonPayload);
+            string response = await _gasBuddyClient.PostJsonAsync(url, jsonPayload, referrer);
 
             if (string.IsNullOrEmpty(response))
             {
@@ -184,105 +180,6 @@ public class RequestMapService : IRequestService
         }
     }
 
-    private static int _requestCount = 0;
-    private static readonly object _countLock = new object();
-    private const int DelayThreshold = 9;
-    private const int LongDelayMs = 5000;
-
-    public static void IncrementRequestCount()
-    {
-        lock (_countLock)
-        {
-            _requestCount++;
-        }
-    }
-
-    private async Task<string> PostJsonAsync(string url, string data)
-    {
-        int maxRetries = 5;
-        int retryCount = 0;
-        int baseDelayMs = 2000; // Start with 2 seconds
-
-        while (retryCount < maxRetries)
-        {
-            // Implement throttling
-            await _requestThrottler.WaitAsync();
-            try
-            {
-                IncrementRequestCount();
-                int currentCount;
-                lock (_countLock)
-                {
-                    currentCount = _requestCount;
-                }
-
-                if (currentCount % (DelayThreshold + 1) == 0)
-                {
-                    Console.WriteLine($"Throttling: 9th request reached. Waiting {LongDelayMs}ms");
-                    await Task.Delay(LongDelayMs);
-                }
-
-                // Ensure minimum time between requests (5 seconds)
-                var timeSinceLastRequest = DateTime.UtcNow - _lastRequestTime;
-                if (timeSinceLastRequest.TotalSeconds < 5)
-                {
-                    var delayMs = (int)((5 - timeSinceLastRequest.TotalSeconds) * 1000) + _random.Next(1000, 3000);
-                    Console.WriteLine($"Throttling: Waiting {delayMs}ms before next request");
-                    await Task.Delay(delayMs);
-                }
-
-                HttpClient client;
-                lock (_clientLock)
-                {
-                    client = _currentHttpClient;
-                }
-
-                using var request = new HttpRequestMessage(HttpMethod.Post, url);
-                request.Content = new StringContent(data, Encoding.UTF8, "application/json");
-                request.Headers.Referrer = new Uri($"https://www.gasbuddy.com/gaspricemap?fuel=1&z=14&lat=45.4580767734426&lng=-73.4545422846292");
-
-                var response = await client.SendAsync(request);
-                _lastRequestTime = DateTime.UtcNow;
-
-                if (response.IsSuccessStatusCode)
-                {
-                    return await response.Content.ReadAsStringAsync();
-                }
-
-                if (response.StatusCode == (HttpStatusCode)429)
-                {
-                    Console.WriteLine("Rate limited (429). Stopping processing as requested.");
-                    throw new HttpRequestException("Rate limited (429)", null, HttpStatusCode.TooManyRequests);
-                }
-
-                // Handle other error status codes
-                string errorContent = await response.Content.ReadAsStringAsync();
-                Console.WriteLine($"Error response ({response.StatusCode}): {errorContent}");
-
-                // Don't retry on client errors (4xx) except 429
-                if ((int)response.StatusCode >= 400 && (int)response.StatusCode < 500 && response.StatusCode != (HttpStatusCode)429)
-                {
-                    throw new HttpRequestException($"Client error: {response.StatusCode} - {errorContent}");
-                }
-
-                response.EnsureSuccessStatusCode();
-            }
-            catch (Exception ex) when (retryCount < maxRetries - 1)
-            {
-                retryCount++;
-                int delayMs = (int)(baseDelayMs * Math.Pow(2, retryCount - 1) * (0.8 + 0.4 * _random.NextDouble()));
-                Console.WriteLine($"Request failed: {ex.Message}. Retry {retryCount}/{maxRetries} in {delayMs}ms");
-                await Task.Delay(delayMs);
-            }
-            finally
-            {
-                _requestThrottler.Release();
-            }
-        }
-
-        throw new Exception($"Failed after {maxRetries} retries");
-    }
-
     public void Dispose()
     {
         Dispose(true);
@@ -295,8 +192,7 @@ public class RequestMapService : IRequestService
         {
             if (disposing)
             {
-                _currentHttpClient?.Dispose();
-                _requestThrottler?.Dispose();
+                _gasBuddyClient?.Dispose();
                 _geocoder?.Dispose();
                 _stationDetailsService?.Dispose();
             }
