@@ -43,6 +43,10 @@ public class RequestMapService : IRequestService
             // Get gas stations using the coordinates
             return await GetGasStationsByCoordinatesAsync(latitude, longitude);
         }
+        catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.TooManyRequests)
+        {
+            throw; // Propagate rate limit error
+        }
         catch (Exception ex)
         {
             Console.WriteLine($"Error in GetDataAsync: {ex.Message}");

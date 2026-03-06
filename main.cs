@@ -323,7 +323,21 @@ class Program
                 );
 
                 // Call the find method from the GasStationFinder class
-                var result = await _gasStationFinder.FindAsync(searchGas);
+                string result;
+                try
+                {
+                    result = await _gasStationFinder.FindAsync(searchGas);
+                }
+                catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+                {
+                    result = "⚠️ <b>Service is temporarily unavailable due to high demand.</b> Please try again in a few minutes.";
+                    Console.WriteLine("Stopped processing due to Rate Limit (429)");
+                }
+                catch (Exception ex)
+                {
+                    result = "❌ An error occurred while searching for gas stations. Please try again later.";
+                    Console.WriteLine($"Search error: {ex.Message}");
+                }
 
                 // Send the result back to the user
                 await botClient.SendMessage(

@@ -77,6 +77,11 @@ public class GasBuddyStationDetailsService : IStationDetailsService
                 Brand = station.Name ?? "Unknown"
             };
         }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+        {
+            Console.WriteLine($"Rate limit reached while getting station details for ID {stationId}. Stopping.");
+            throw; // Re-throw to stop the whole process
+        }
         catch (Exception ex)
         {
             Console.WriteLine($"Error getting station details for ID {stationId}: {ex.Message}");
