@@ -57,7 +57,7 @@ public class GasBuddyHttpClient : IDisposable
                 var timeSinceLastRequest = DateTime.UtcNow - _lastRequestTime;
                 if (timeSinceLastRequest.TotalSeconds < 5)
                 {
-                    var delayMs = (int)((2 - timeSinceLastRequest.TotalSeconds) * 1000) + _random.Next(1000, 3000);
+                    var delayMs = (int)((5 - timeSinceLastRequest.TotalSeconds) * 1000) + _random.Next(1000, 3000);
                     Console.WriteLine($"Throttling: Waiting {delayMs}ms before next request");
                     await Task.Delay(delayMs);
                 }
