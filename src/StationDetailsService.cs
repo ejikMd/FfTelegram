@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 public interface IStationDetailsService : IDisposable
 {
     Task<StationDetails> GetStationDetailsAsync(int stationId);
+    Task<StationDetails> GetStationDetailsAsync(double latitude, double longitude);
 }
 
 public class StationDetails

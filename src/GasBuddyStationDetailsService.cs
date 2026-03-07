@@ -8,11 +8,13 @@ using System.Threading.Tasks;
 public class GasBuddyStationDetailsService : IStationDetailsService
 {
     private readonly GasBuddyHttpClient _gasBuddyClient;
+    private readonly IReverseGeocoder _reverseGeocoder;
     private bool _disposed = false;
 
     public GasBuddyStationDetailsService()
     {
         _gasBuddyClient = new GasBuddyHttpClient();
+        _reverseGeocoder = new OpenStreetMapReverseGeocoder();
     }
 
     public async Task<StationDetails> GetStationDetailsAsync(int stationId)
@@ -89,6 +91,45 @@ public class GasBuddyStationDetailsService : IStationDetailsService
         }
     }
 
+    public async Task<StationDetails> GetStationDetailsAsync(double latitude, double longitude)
+    {
+        try
+        {
+            string address = await _reverseGeocoder.GetAddressAsync(latitude, longitude);
+            
+            return new StationDetails
+            {
+                Id = 0,
+                Name = "Location",
+                Address = address,
+                Latitude = latitude,
+                Longitude = longitude,
+                City = string.Empty,
+                State = string.Empty,
+                ZipCode = string.Empty,
+                Phone = string.Empty,
+                Brand = "Unknown"
+            };
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error getting station details from coordinates: {ex.Message}");
+            return new StationDetails
+            {
+                Id = 0,
+                Name = "Location",
+                Address = $"{latitude}, {longitude}",
+                Latitude = latitude,
+                Longitude = longitude,
+                City = string.Empty,
+                State = string.Empty,
+                ZipCode = string.Empty,
+                Phone = string.Empty,
+                Brand = "Unknown"
+            };
+        }
+    }
+
     private StationDetails CreateFallbackStationDetails(int stationId)
     {
         return new StationDetails
@@ -119,6 +160,7 @@ public class GasBuddyStationDetailsService : IStationDetailsService
             if (disposing)
             {
                 _gasBuddyClient?.Dispose();
+                _reverseGeocoder?.Dispose();
             }
             _disposed = true;
         }
