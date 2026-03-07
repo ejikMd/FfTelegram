@@ -69,6 +69,38 @@ public class StationDetailsService : IStationDetailsService
         }
     }
 
+    public async Task<StationDetails> GetStationDetailsAsync(double latitude, double longitude)
+    {
+        try
+        {
+            // Dummy implementation: return basic location details
+            await Task.Delay(100); // Simulate API call
+
+            return new StationDetails
+            {
+                Id = 0,
+                Name = "Location",
+                Address = $"{latitude}, {longitude}",
+                Latitude = latitude,
+                Longitude = longitude,
+                Brand = "Unknown"
+            };
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error getting station details from coordinates: {ex.Message}");
+            return new StationDetails
+            {
+                Id = 0,
+                Name = "Location",
+                Address = $"{latitude}, {longitude}",
+                Latitude = latitude,
+                Longitude = longitude,
+                Brand = "Unknown"
+            };
+        }
+    }
+
     public void Dispose()
     {
         Dispose(true);
