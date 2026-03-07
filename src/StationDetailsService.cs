@@ -29,12 +29,14 @@ public class StationDetails
 public class StationDetailsService : IStationDetailsService
 {
     private readonly HttpClient _httpClient;
+    private readonly IReverseGeocoder _reverseGeocoder;
     private bool _disposed = false;
 
     public StationDetailsService()
     {
         _httpClient = new HttpClient();
         _httpClient.BaseAddress = new Uri("https://www.gasbuddy.com");
+        _reverseGeocoder = new OpenStreetMapReverseGeocoder();
         // Add necessary headers similar to RequestMapService
     }
 
@@ -73,14 +75,13 @@ public class StationDetailsService : IStationDetailsService
     {
         try
         {
-            // Dummy implementation: return basic location details
-            await Task.Delay(100); // Simulate API call
+            string address = await _reverseGeocoder.GetAddressAsync(latitude, longitude);
 
             return new StationDetails
             {
                 Id = 0,
                 Name = "Location",
-                Address = $"{latitude}, {longitude}",
+                Address = address,
                 Latitude = latitude,
                 Longitude = longitude,
                 Brand = "Unknown"
@@ -114,6 +115,7 @@ public class StationDetailsService : IStationDetailsService
             if (disposing)
             {
                 _httpClient?.Dispose();
+                _reverseGeocoder?.Dispose();
             }
             _disposed = true;
         }
