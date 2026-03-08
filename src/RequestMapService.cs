@@ -115,6 +115,7 @@ public class RequestMapService : IRequestService
             if (mapResponse.primaryStations != null)
             {
                 Console.WriteLine($"Received {mapResponse.primaryStations.Count} primary stations ");
+                int i = 0;
                 foreach (var station in mapResponse.primaryStations)
                 {
                     // Skip stations without valid price
@@ -124,7 +125,8 @@ public class RequestMapService : IRequestService
                     if (decimal.TryParse(station.price, out decimal price) && !stationIds.Contains(station.id))
                     {
                         stationIds.Add(station.id);
-
+                        i++;
+                        Console.WriteLine($"Processing station {i} - {station.lat}, {station.lng}");
                         // Get detailed station information
                         var details = await _stationDetailsService.GetStationDetailsAsync(station.lat, station.lng);
 

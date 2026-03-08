@@ -26,12 +26,15 @@ public class OpenStreetMapReverseGeocoder : IReverseGeocoder
             var response = await _httpClient.GetAsync(url);
             if (!response.IsSuccessStatusCode)
             {
+                Console.WriteLine($"Reverse geocoding failed with status code: {response.StatusCode}");
                 return $"{latitude}, {longitude}";
             }
 
             string content = await response.Content.ReadAsStringAsync();
             var options = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
             var result = System.Text.Json.JsonSerializer.Deserialize<ReverseGeocodeResult>(content, options);
+
+            Console.WriteLine($"Reverse geocoding result for {latitude}, {longitude}: {result?.DisplayName}");
 
             return result?.DisplayName ?? $"{latitude}, {longitude}";
         }
