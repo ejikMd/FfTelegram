@@ -33,7 +33,7 @@ public class OpenStreetMapReverseGeocoder : IReverseGeocoder
             var options = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
             var result = System.Text.Json.JsonSerializer.Deserialize<ReverseGeocodeResult>(content, options);
 
-            return result?.Address ?? $"{latitude}, {longitude}";
+            return result?.DisplayName ?? $"{latitude}, {longitude}";
         }
         catch (Exception ex)
         {
@@ -53,6 +53,6 @@ public class OpenStreetMapReverseGeocoder : IReverseGeocoder
 
     private class ReverseGeocodeResult
     {
-        public string? Address { get; set; }
+        public string? DisplayName { get; set; }
     }
 }

@@ -126,7 +126,7 @@ public class RequestMapService : IRequestService
                         stationIds.Add(station.id);
 
                         // Get detailed station information
-                        var details = await _stationDetailsService.GetStationDetailsAsync(station.id);
+                        var details = await _stationDetailsService.GetStationDetailsAsync(station.lat, station.lng);
 
                         result.Add(new FuelStation(
                             details.Name,
@@ -154,7 +154,7 @@ public class RequestMapService : IRequestService
                         stationIds.Add(station.id);
 
                         // Get detailed station information
-                        var details = await _stationDetailsService.GetStationDetailsAsync(station.id);
+                        var details = await _stationDetailsService.GetStationDetailsAsync(station.lat, station.lng);
 
                         result.Add(new FuelStation(
                             details.Name,
