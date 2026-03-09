@@ -3,64 +3,57 @@ using System.Net.Http;
 using System.Text.Json;
 using System.Threading.Tasks;
 
-public class HereMapDistanceCalculator : IDistanceCalculator
+public class GeoapifyDistanceCalculator : IDistanceCalculator
 {
     private readonly HttpClient _httpClient;
     private readonly string _apiKey;
     private bool _disposed = false;
 
-    public HereMapDistanceCalculator(string apiKey)
+    public GeoapifyDistanceCalculator(string apiKey)
     {
         if (string.IsNullOrEmpty(apiKey))
-            throw new ArgumentNullException(nameof(apiKey), "HERE Maps API key is required");
-
+            throw new ArgumentNullException(nameof(apiKey), "Geoapify API key is required");
+  
         _apiKey = apiKey;
         _httpClient = new HttpClient();
     }
 
-    public async Task<string> CalculateDrivingDistanceAsync(string startAddress, string endAddress)
+    public async Task<decimal> CalculateDrivingDistanceAsync(double startLatitude, double startLongitude, double endLatitude, double endLongitude)
     {
         try
-        {
-            // Encode addresses for URL
-            string encodedStart = Uri.EscapeDataString(startAddress);
-            string encodedEnd = Uri.EscapeDataString(endAddress);
-
-            // Build URL for HERE Maps Routing API
-            string url = $"https://router.hereapi.com/v8/routes?" +
-                        $"transportMode=car" +
-                        $"&origin={encodedStart}" +
-                        $"&destination={encodedEnd}" +
-                        $"&return=summary" +
+        {          
+            string url = $"https://api.geoapify.com/v1/routing?" +
+                        $"mode=drive" +
+                        $"&waypoints={startLatitude},{startLongitude}|{endLatitude},{endLongitude}" +
                         $"&apiKey={_apiKey}";
 
             var response = await _httpClient.GetAsync(url);
 
             if (!response.IsSuccessStatusCode)
             {
-                Console.WriteLine($"HERE Maps API error: {response.StatusCode}");
-                return "N/A";
+                Console.WriteLine($"Geoapify API error: {response.StatusCode}");
+                return 0m;
             }
 
             string content = await response.Content.ReadAsStringAsync();
             var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-            var result = JsonSerializer.Deserialize<HereRoutingResponse>(content, options);
+            var result = JsonSerializer.Deserialize<GeoapifyRoutingResponse>(content, options);
 
             if (result?.routes?.Count > 0 && result.routes[0].summary != null)
             {
                 // Return distance in km
-                double distanceInMeters = result.routes[0].summary.distance;
-                double distanceInKm = distanceInMeters / 1000.0;
-                return $"{distanceInKm:F1} km";
+                //double distanceInMeters = result.routes[0].summary.distance;
+                //decimal distanceInKm = (decimal)(distanceInMeters / 1000.0);
+                return 0m;//$"{distanceInKm:F1} km";
             }
 
-            return "N/A";
+            return 0m;
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Error calculating distance: {ex.Message}");
-            return "N/A";
-        }
+            return 0m;
+        } 
     }
 
     public void Dispose()
@@ -72,7 +65,7 @@ public class HereMapDistanceCalculator : IDistanceCalculator
         }
     }
 
-    private class HereRoutingResponse
+    private class GeoapifyRoutingResponse
     {
         public System.Collections.Generic.List<Route>? routes { get; set; }
     }

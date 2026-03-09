@@ -10,7 +10,7 @@ public class GeocoderCaService : IGeocoder
     private readonly string _apiKey;
     private bool _disposed = false;
 
-    public GeocoderCaService(string apiKey = null)
+    public GeocoderCaService(string apiKey = "")
     {
         _httpClient = new HttpClient();
         _httpClient.DefaultRequestHeaders.Add("User-Agent", "TelegramBot/1.0");

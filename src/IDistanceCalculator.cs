@@ -3,5 +3,5 @@ using System.Threading.Tasks;
 
 public interface IDistanceCalculator : IDisposable
 {
-    Task<string> CalculateDrivingDistanceAsync(string startAddress, string endAddress);
+    Task<decimal> CalculateDrivingDistanceAsync(double startLatitude, double startLongitude, double endLatitude, double endLongitude);
 }

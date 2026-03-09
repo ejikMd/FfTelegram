@@ -106,7 +106,7 @@ public class RequestService : IRequestService
                             price = station.prices[0].credit.price;
                         }
 
-                        stations.Add(new FuelStation(name, address, price));
+                        stations.Add(new FuelStation(name, address, 0.0, 0.0, price));
                     }
 
                     if (stations.Count > 0)

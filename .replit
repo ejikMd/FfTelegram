@@ -48,3 +48,7 @@ args = "dotnet run"
 
 [workflows.workflow.metadata]
 outputType = "console"
+
+[userenv]
+
+[userenv.shared]

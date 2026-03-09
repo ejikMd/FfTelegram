@@ -27,7 +27,7 @@ class Program
     {
         // Get bot token from environment variable (set in Replit Secrets)
         var botToken = Environment.GetEnvironmentVariable("BOT_TOKEN");
-        var hereMapApiKey = Environment.GetEnvironmentVariable("HERE_MAPS_API_KEY");
+        var geoapifyApiKey = Environment.GetEnvironmentVariable("geoapify");
 
         if (string.IsNullOrEmpty(botToken))
         {
@@ -35,10 +35,10 @@ class Program
             return;
         }
 
-        if (string.IsNullOrEmpty(hereMapApiKey))
+        if (string.IsNullOrEmpty(geoapifyApiKey))
         {
-            Console.WriteLine("Warning: HERE_MAPS_API_KEY not set. Distance calculation will not work.");
-            hereMapApiKey = ""; // Allow bot to run even without API key
+            Console.WriteLine("Warning: geoapify not set. Distance calculation will not work.");
+            geoapifyApiKey = ""; // Allow bot to run even without API key
         }
 
         _botClient = new TelegramBotClient(botToken);
@@ -47,14 +47,11 @@ class Program
         // Option 1: Use geocoder.ca (free, may have limitations)
         IGeocoder geocoder = new GeocoderCaService(); // Optionally pass API key
 
-        // Option 2: Use Google Maps (requires API key, most reliable)
-        // IGeocoder geocoder = new GoogleMapsGeocoderService("YOUR_GOOGLE_MAPS_API_KEY");
-
-        // Option 3: Use OpenStreetMap (free, no API key, but rate limited)
+        // Option 2: Use OpenStreetMap (free, no API key, but rate limited)
         // IGeocoder geocoder = new OpenStreetMapGeocoderService();
         
         IStationDetailsService stationDetailsService = new GasBuddyStationDetailsService();
-        IDistanceCalculator distanceCalculator = new HereMapDistanceCalculator(hereMapApiKey);
+        IDistanceCalculator distanceCalculator = new GeoapifyDistanceCalculator(geoapifyApiKey);
 
         // Initialize services
         //_requestService = new RequestService();

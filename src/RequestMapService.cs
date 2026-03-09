@@ -44,7 +44,7 @@ public class RequestMapService : IRequestService
             Console.WriteLine($"Geocoded {startAddress} to coordinates: {latitude}, {longitude}");
 
             // Get gas stations using the coordinates
-            return await GetGasStationsByCoordinatesAsync(latitude, longitude, startAddress);
+            return await GetGasStationsByCoordinatesAsync(latitude, longitude);
         }
         catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.TooManyRequests)
         {
@@ -57,7 +57,7 @@ public class RequestMapService : IRequestService
         }
     }
 
-    private async Task<List<FuelStation>> GetGasStationsByCoordinatesAsync(double latitude, double longitude, string startAddress)
+    private async Task<List<FuelStation>> GetGasStationsByCoordinatesAsync(double latitude, double longitude)
     {
         // Add random delay before starting (3-7 seconds)
         await Task.Delay(3000 + _random.Next(4000));
@@ -131,6 +131,8 @@ public class RequestMapService : IRequestService
                         result.Add(new FuelStation(
                             details.Name,
                             details.Address,
+                            station.lat,
+                            station.lng,
                             price // Keep original price (not divided by 100)
                         ));
 
@@ -159,6 +161,8 @@ public class RequestMapService : IRequestService
                         result.Add(new FuelStation(
                             details.Name,
                             details.Address,
+                            station.lat,
+                            station.lng,
                             price // Keep original price (not divided by 100)
                         ));
 
@@ -175,7 +179,7 @@ public class RequestMapService : IRequestService
             // Calculate distances for all stations
             foreach (var station in result)
             {
-                station.Distance = await _distanceCalculator.CalculateDrivingDistanceAsync(startAddress, station.Address);
+                station.Distance = await _distanceCalculator.CalculateDrivingDistanceAsync(latitude, longitude, station.Latitude, station.Longitude);
             }
 
             return result;
