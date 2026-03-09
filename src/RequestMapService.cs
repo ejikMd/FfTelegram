@@ -114,7 +114,7 @@ public class RequestMapService : IRequestService
             {
                 Console.WriteLine($"Received {mapResponse.primaryStations.Count} primary stations ");
                 int i = 0;
-                foreach (var station in mapResponse.primaryStations.Take(3))
+                foreach (var station in mapResponse.primaryStations)
                 {
                     // Skip stations without valid price
                     if (station.price == "--" || string.IsNullOrEmpty(station.price))
@@ -182,7 +182,7 @@ public class RequestMapService : IRequestService
                 station.Distance = await _distanceCalculator.CalculateDrivingDistanceAsync(latitude, longitude, station.Latitude, station.Longitude);
             }
 
-            return result;
+            return result.OrderBy(s => s.Price).ToList();
         }
         catch (Exception ex)
         {

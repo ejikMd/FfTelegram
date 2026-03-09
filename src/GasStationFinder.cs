@@ -32,8 +32,8 @@ public class GasStationFinder
             sb.AppendLine();
 
             sb.AppendLine("<pre>");
-            sb.AppendLine($"{"Name",-25} {"Price",-10} {"Address",-40}");
-            sb.AppendLine(new string('-', 77));
+            sb.AppendLine($"{"Name",-25} {"Price",-10} {"Address",-40} {"Distance",-10}");
+            sb.AppendLine(new string('-', 87));
 
             foreach (var station in allStations)
             {
@@ -41,7 +41,7 @@ public class GasStationFinder
                 var price = station.Price > 0 ? $"${station.Price:F2}" : "N/A";
                 var address = station.Address.Length > 38 ? station.Address.Substring(0, 35) + "..." : station.Address;
                 var distance = station.Distance;
-                sb.AppendLine($"{name,-25} {price,-10} {address,-40} {distance:F1}");
+                sb.AppendLine($"{name,-25} {price,-10} {address,-40} {distance:-10}");
             }
 
             sb.AppendLine("</pre>");
