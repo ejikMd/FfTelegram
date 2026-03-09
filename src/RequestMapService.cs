@@ -96,13 +96,8 @@ public class RequestMapService : IRequestService
             }
 
             // Parse the response
-            var options = new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
-            };
-
+            var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
             var mapResponse = JsonSerializer.Deserialize<GasPriceMapResponse>(response, options);
-
             if (mapResponse == null)
             {
                 return new List<FuelStation>();
@@ -137,7 +132,7 @@ public class RequestMapService : IRequestService
                         ));
 
                         // Small delay between detail requests to avoid rate limiting
-                        await Task.Delay(500 + _random.Next(1000));
+                        await Task.Delay(500 + _random.Next(500));
                     }
                 }
             }
@@ -165,7 +160,7 @@ public class RequestMapService : IRequestService
                         ));
 
                         // Small delay between detail requests
-                        await Task.Delay(500 + _random.Next(1000));
+                        await Task.Delay(500 + _random.Next(500));
 
                         if (result.Count >= 20) break; // Limit total results
                     }
@@ -175,7 +170,7 @@ public class RequestMapService : IRequestService
             Console.WriteLine($"Found {result.Count} stations with prices");
 
             // Add delay after successful request (2-5 seconds)
-            await Task.Delay(2000 + _random.Next(3000));
+            //await Task.Delay(2000 + _random.Next(3000));
 
             return result;
         }

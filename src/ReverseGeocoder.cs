@@ -1,9 +1,17 @@
 using System;
 using System.Threading.Tasks;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
+public class ReverseGeocodeInfo
+{
+    public string Name { get; set; } = string.Empty;
+    public string Address { get; set; } = string.Empty;
+}
 
 public interface IReverseGeocoder : IDisposable
 {
-    Task<string> GetAddressAsync(double latitude, double longitude);
+    Task<ReverseGeocodeInfo> GetAddressAsync(double latitude, double longitude);
 }
 
 public class OpenStreetMapReverseGeocoder : IReverseGeocoder
@@ -16,7 +24,7 @@ public class OpenStreetMapReverseGeocoder : IReverseGeocoder
         _httpClient = new HttpClient();
     }
 
-    public async Task<string> GetAddressAsync(double latitude, double longitude)
+    public async Task<ReverseGeocodeInfo> GetAddressAsync(double latitude, double longitude)
     {
         try
         {
@@ -27,21 +35,31 @@ public class OpenStreetMapReverseGeocoder : IReverseGeocoder
             if (!response.IsSuccessStatusCode)
             {
                 Console.WriteLine($"Reverse geocoding failed with status code: {response.StatusCode}");
-                return $"{latitude}, {longitude}";
+                return new ReverseGeocodeInfo 
+                { 
+                    Name = $"{latitude}, {longitude}",
+                    Address = $"{latitude}, {longitude}"
+                };
             }
 
             string content = await response.Content.ReadAsStringAsync();
-            var options = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-            var result = System.Text.Json.JsonSerializer.Deserialize<ReverseGeocodeResult>(content, options);
+            var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            var result = JsonSerializer.Deserialize<ReverseGeocodeResult>(content, options);
 
-            Console.WriteLine($"Reverse geocoding result for {latitude}, {longitude}: {result?.DisplayName}");
-
-            return result?.DisplayName ?? $"{latitude}, {longitude}";
+            return new ReverseGeocodeInfo
+            {
+                Name = result?.Name ?? "Unknown",
+                Address = result?.DisplayName ?? $"{latitude}, {longitude}"
+            };
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Error in reverse geocoding: {ex.Message}");
-            return $"{latitude}, {longitude}";
+            return new ReverseGeocodeInfo 
+            { 
+                Name = "Unknown",
+                Address = $"{latitude}, {longitude}"
+            };
         }
     }
 
@@ -56,6 +74,10 @@ public class OpenStreetMapReverseGeocoder : IReverseGeocoder
 
     private class ReverseGeocodeResult
     {
+        [JsonPropertyName("name")]
+        public string? Name { get; set; }
+        
+        [JsonPropertyName("display_name")]
         public string? DisplayName { get; set; }
     }
 }

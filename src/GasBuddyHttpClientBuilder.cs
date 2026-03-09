@@ -15,12 +15,6 @@ public static class GasBuddyHttpClientBuilder
     private static readonly string _optanonConsent = "isGpcEnabled=0&datestamp=Fri+Feb+27+2026+14%3A34%3A22+GMT-0500+(Eastern+Standard+Time)&version=202309.1.0&browserGpcFlag=0&isIABGlobal=false&hosts=&consentId=5d8e870c-f206-4c38-998c-39910b23c933&interactionCount=1&landingPath=NotLandingPage&groups=C0004%3A0%2CC0003%3A0%2CC0002%3A0%2CC0001%3A1&geolocation=CA%3BQC&AwaitingReconsent=false";
 
     private static readonly HttpClient _httpClient;
-    private static readonly List<WebProxy> _proxies = new List<WebProxy>();
-    private static readonly Random _random = new Random();
-    private static readonly object _proxyLock = new object();
-    private static int _currentProxyIndex = 0;
-    private static readonly Dictionary<WebProxy, DateTime> _proxyFailureTimes = new Dictionary<WebProxy, DateTime>();
-    private static readonly TimeSpan _proxyCooldownPeriod = TimeSpan.FromMinutes(5);
 
     static GasBuddyHttpClientBuilder()
     {
@@ -72,22 +66,4 @@ public static class GasBuddyHttpClientBuilder
     }
 
     public static HttpClient GetClient() => _httpClient;
-
-    // These methods remain for proxy management if needed, but simplified
-    public static void MarkProxyFailure(WebProxy proxy)
-    {
-        if (proxy != null)
-        {
-            lock (_proxyLock)
-            {
-                _proxyFailureTimes[proxy] = DateTime.UtcNow;
-            }
-        }
-    }
-
-    public static void RefreshProxies()
-    {
-        // Placeholder for proxy refresh logic if needed
-    }
-
 }
