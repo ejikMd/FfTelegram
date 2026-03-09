@@ -24,20 +24,15 @@ public class StationDetails
     public string Brand { get; set; } = string.Empty;
 }
 
-// This would need to be implemented with another GasBuddy API endpoint
-// For now, it's a placeholder
 public class StationDetailsService : IStationDetailsService
 {
-    private readonly HttpClient _httpClient;
     private readonly IReverseGeocoder _reverseGeocoder;
     private bool _disposed = false;
 
-    public StationDetailsService()
+    public StationDetailsService(string apiKey)
     {
-        _httpClient = new HttpClient();
-        _httpClient.BaseAddress = new Uri("https://www.gasbuddy.com");
-        _reverseGeocoder = new OpenStreetMapReverseGeocoder();
-        // Add necessary headers similar to RequestMapService
+        //_reverseGeocoder = new OpenStreetMapReverseGeocoder();
+        _reverseGeocoder = new GeoapifyDistanceCalculator(apiKey);
     }
 
     public async Task<StationDetails> GetStationDetailsAsync(int stationId)
@@ -114,7 +109,6 @@ public class StationDetailsService : IStationDetailsService
         {
             if (disposing)
             {
-                _httpClient?.Dispose();
                 _reverseGeocoder?.Dispose();
             }
             _disposed = true;

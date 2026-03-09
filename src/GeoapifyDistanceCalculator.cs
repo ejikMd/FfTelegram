@@ -4,7 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
-public class GeoapifyDistanceCalculator : IDistanceCalculator
+public class GeoapifyDistanceCalculator : IDistanceCalculator, IReverseGeocoder
 {
     private readonly HttpClient _httpClient;
     private readonly string _apiKey;
@@ -14,7 +14,7 @@ public class GeoapifyDistanceCalculator : IDistanceCalculator
     {
         if (string.IsNullOrEmpty(apiKey))
             throw new ArgumentNullException(nameof(apiKey), "Geoapify API key is required");
-  
+
         _apiKey = apiKey;
         _httpClient = new HttpClient();
     }
@@ -22,12 +22,12 @@ public class GeoapifyDistanceCalculator : IDistanceCalculator
     public async Task<decimal> CalculateDrivingDistanceAsync(double startLatitude, double startLongitude, double endLatitude, double endLongitude)
     {
         try
-        {          
+        {
             string url = $"https://api.geoapify.com/v1/routing?" +
                         $"mode=drive" +
                         $"&waypoints={startLatitude},{startLongitude}|{endLatitude},{endLongitude}" +
                         $"&apiKey={_apiKey}";
-            
+
             var response = await _httpClient.GetAsync(url);
 
             if (!response.IsSuccessStatusCode)
@@ -54,7 +54,48 @@ public class GeoapifyDistanceCalculator : IDistanceCalculator
         {
             Console.WriteLine($"Error calculating distance: {ex.Message}");
             return 0m;
-        } 
+        }
+    }
+
+    public async Task<ReverseGeocodeInfo> GetAddressAsync(double latitude, double longitude)
+    {
+        try
+        {
+            string url = $"https://api.geoapify.com/v1/geocode/reverse?" +
+            $"format=json" +
+            $"&lat={latitude}&lon={longitude}" +
+            $"&apiKey={_apiKey}";
+
+            var response = await _httpClient.GetAsync(url);
+            if (!response.IsSuccessStatusCode)
+            {
+                Console.WriteLine($"Reverse geocoding failed with status code: {response.StatusCode}");
+                return new ReverseGeocodeInfo
+                {
+                    Name = $"{latitude}, {longitude}",
+                    Address = $"{latitude}, {longitude}"
+                };
+            }
+
+            string content = await response.Content.ReadAsStringAsync();
+            var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            var result = JsonSerializer.Deserialize<ReverseGeocodeResult>(content, options);
+
+            return new ReverseGeocodeInfo
+            {
+                Name = result?.Name,
+                Address = result?.Results[0].Formatted ?? $"{latitude}, {longitude}"
+            };
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error in reverse geocoding: {ex.Message}");
+            return new ReverseGeocodeInfo
+            {
+                Name = "Unknown",
+                Address = $"{latitude}, {longitude}"
+            };
+        }
     }
 
     public void Dispose()
@@ -72,24 +113,48 @@ public class GeoapifyDistanceCalculator : IDistanceCalculator
         public List<Feature> Features { get; set; }
     }
 
-    public class Feature
+    private class Feature
     {
         [JsonPropertyName("properties")]
         public Properties Properties { get; set; }
     }
 
-    public class Properties
+    private class Properties
     {
         [JsonPropertyName("units")]
-        public string Units { get; set; }
+        public string? Units { get; set; }
 
         [JsonPropertyName("distance")]
         public int Distance { get; set; }
 
         [JsonPropertyName("distance_units")]
-        public string DistanceUnits { get; set; }
+        public string? DistanceUnits { get; set; }
 
         [JsonPropertyName("time")]
         public double Time { get; set; }
+    }
+
+    private class Result
+    {
+        [JsonPropertyName("formatted")]
+        public string? Formatted { get; set; }
+    }
+
+    private class ReverseGeocodeResult
+    {
+        [JsonPropertyName("results")]
+        public List<Result> Results { get; set; }
+
+        public string Name 
+        { 
+            get
+            {
+                if (string.IsNullOrEmpty(Results[0].Formatted) || !char.IsDigit(Results[0].Formatted[0]))
+                {
+                    return Results[0].Formatted.Split(',')[0];
+                }
+                return "Unknown";
+            }
+        }
     }
 }

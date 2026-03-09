@@ -137,7 +137,7 @@ public class RequestMapService : IRequestService
                         ));
 
                         // Small delay between detail requests to avoid rate limiting
-                        await Task.Delay(500 + _random.Next(500));
+                        await Task.Delay(10 + _random.Next(500));
                     }
                 }
             }

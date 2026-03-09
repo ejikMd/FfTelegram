@@ -50,7 +50,7 @@ class Program
         // Option 2: Use OpenStreetMap (free, no API key, but rate limited)
         // IGeocoder geocoder = new OpenStreetMapGeocoderService();
         
-        IStationDetailsService stationDetailsService = new GasBuddyStationDetailsService();
+        IStationDetailsService stationDetailsService = new StationDetailsService(geoapifyApiKey);
         IDistanceCalculator distanceCalculator = new GeoapifyDistanceCalculator(geoapifyApiKey);
 
         // Initialize services

@@ -49,7 +49,7 @@ public class OpenStreetMapReverseGeocoder : IReverseGeocoder
             return new ReverseGeocodeInfo
             {
                 Name = result?.Name ?? "Unknown",
-                Address = result?.DisplayName ?? $"{latitude}, {longitude}"
+                Address = result?.GetAddress() ?? $"{latitude}, {longitude}"
             };
         }
         catch (Exception ex)
@@ -79,5 +79,49 @@ public class OpenStreetMapReverseGeocoder : IReverseGeocoder
         
         [JsonPropertyName("display_name")]
         public string? DisplayName { get; set; }
+        
+        [JsonPropertyName("address")]
+        public Address Address { get; set; }
+
+        public string GetAddress(){
+            return Address?.HouseNumber + " " + Address?.Road + ", " + Address?.City + ", " + Address?.State + " " + Address?.Postcode;
+        }
     }
+
+    public class Address
+    {
+        [JsonPropertyName("house_number")]
+        public string? HouseNumber { get; set; }
+
+        [JsonPropertyName("road")]
+        public string? Road { get; set; }
+
+        [JsonPropertyName("suburb")]
+        public string? Suburb { get; set; }
+
+        [JsonPropertyName("city")]
+        public string? City { get; set; }
+
+        [JsonPropertyName("county")]
+        public string? County { get; set; }
+
+        [JsonPropertyName("state_district")]
+        public string? StateDistrict { get; set; }
+
+        [JsonPropertyName("state")]
+        public string? State { get; set; }
+
+        [JsonPropertyName("ISO3166-2-lvl4")]
+        public string? ISO31662Lvl4 { get; set; }
+
+        [JsonPropertyName("postcode")]
+        public string? Postcode { get; set; }
+
+        [JsonPropertyName("country")]
+        public string? Country { get; set; }
+
+        [JsonPropertyName("country_code")]
+        public string? CountryCode { get; set; }
+    }
+
 }
