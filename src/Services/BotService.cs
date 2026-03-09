@@ -111,15 +111,24 @@ public sealed class BotService : IDisposable
         CancellationToken ct)
     {
         if (_shuttingDown) return;
-        if (update.Message is not { Text: { } messageText } message) return;
 
-        Interlocked.Increment(ref _messagesProcessed);
-        var chatId = message.Chat.Id;
-        var user = message.Chat.Username ?? message.Chat.FirstName ?? $"id:{chatId}";
+        // Text message
+        if (update.Message is { Text: { } messageText } message)
+        {
+            Interlocked.Increment(ref _messagesProcessed);
+            var chatId = message.Chat.Id;
+            var user   = message.Chat.Username ?? message.Chat.FirstName ?? $"id:{chatId}";
+            _logger.LogInformation("Message from {User}: {Text}", user, messageText);
+            await _router.RouteAsync(botClient, chatId, messageText, ct);
+            return;
+        }
 
-        _logger.LogInformation("Message from {User}: {Text}", user, messageText);
-
-        await _router.RouteAsync(botClient, chatId, messageText, ct);
+        // Inline keyboard button press
+        if (update.CallbackQuery is { } callback)
+        {
+            Interlocked.Increment(ref _messagesProcessed);
+            await _router.RouteCallbackAsync(botClient, callback, ct);
+        }
     }
 
     private Task HandleErrorAsync(

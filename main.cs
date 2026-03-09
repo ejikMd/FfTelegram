@@ -50,11 +50,16 @@ class Program
         IDistanceCalculator    distanceCalculator    = new GeoapifyDistanceCalculator(geoapifyKey);
         IRequestService        requestService        = new RequestMapService(geocoder, stationDetailsService, distanceCalculator);
 
-        var gasStationFinder = new GasStationFinder(requestService);
+        var formatterConfig  = StationFormatterConfig.FromEnvironment();
+        var formatStore      = new UserFormatStore(formatterConfig);
+        var gasStationFinder = new GasStationFinder(requestService, formatterConfig, formatStore);
+        logger.LogInformation("Output format: {Format}, MaxResults: {Max}", formatterConfig.Format, formatterConfig.MaxResults);
         var rateLimiter      = new UserRateLimiter(cooldown: TimeSpan.FromSeconds(3));
         var router           = new MessageRouter(
                                     gasStationFinder,
                                     rateLimiter,
+                                    formatterConfig,
+                                    formatStore,
                                     loggerFactory.CreateLogger<MessageRouter>());
 
         using var botService = new BotService(
