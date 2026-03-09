@@ -12,16 +12,19 @@ public class RequestMapService : IRequestService
 {
     private readonly IGeocoder _geocoder;
     private readonly IStationDetailsService _stationDetailsService;
+    private readonly IDistanceCalculator _distanceCalculator;
     private readonly GasBuddyHttpClient _gasBuddyClient;
     private readonly Random _random = new Random();
     private bool _disposed = false;
 
     public RequestMapService(
         IGeocoder geocoder,
-        IStationDetailsService stationDetailsService)
+        IStationDetailsService stationDetailsService,
+        IDistanceCalculator distanceCalculator)
     {
         _geocoder = geocoder ?? throw new ArgumentNullException(nameof(geocoder));
         _stationDetailsService = stationDetailsService ?? throw new ArgumentNullException(nameof(stationDetailsService));
+        _distanceCalculator = distanceCalculator ?? throw new ArgumentNullException(nameof(distanceCalculator));
         _gasBuddyClient = new GasBuddyHttpClient();
     }
 
@@ -41,7 +44,7 @@ public class RequestMapService : IRequestService
             Console.WriteLine($"Geocoded {startAddress} to coordinates: {latitude}, {longitude}");
 
             // Get gas stations using the coordinates
-            return await GetGasStationsByCoordinatesAsync(latitude, longitude);
+            return await GetGasStationsByCoordinatesAsync(latitude, longitude, startAddress);
         }
         catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.TooManyRequests)
         {
@@ -54,7 +57,7 @@ public class RequestMapService : IRequestService
         }
     }
 
-    private async Task<List<FuelStation>> GetGasStationsByCoordinatesAsync(double latitude, double longitude)
+    private async Task<List<FuelStation>> GetGasStationsByCoordinatesAsync(double latitude, double longitude, string startAddress)
     {
         // Add random delay before starting (3-7 seconds)
         await Task.Delay(3000 + _random.Next(4000));
@@ -169,8 +172,11 @@ public class RequestMapService : IRequestService
 
             Console.WriteLine($"Found {result.Count} stations with prices");
 
-            // Add delay after successful request (2-5 seconds)
-            //await Task.Delay(2000 + _random.Next(3000));
+            // Calculate distances for all stations
+            foreach (var station in result)
+            {
+                station.Distance = await _distanceCalculator.CalculateDrivingDistanceAsync(startAddress, station.Address);
+            }
 
             return result;
         }
@@ -196,6 +202,7 @@ public class RequestMapService : IRequestService
                 _gasBuddyClient?.Dispose();
                 _geocoder?.Dispose();
                 _stationDetailsService?.Dispose();
+                _distanceCalculator?.Dispose();
             }
             _disposed = true;
         }

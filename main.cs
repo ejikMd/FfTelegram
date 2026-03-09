@@ -27,11 +27,18 @@ class Program
     {
         // Get bot token from environment variable (set in Replit Secrets)
         var botToken = Environment.GetEnvironmentVariable("BOT_TOKEN");
+        var hereMapApiKey = Environment.GetEnvironmentVariable("HERE_MAPS_API_KEY");
 
         if (string.IsNullOrEmpty(botToken))
         {
             Console.WriteLine("Please set BOT_TOKEN in Replit Secrets");
             return;
+        }
+
+        if (string.IsNullOrEmpty(hereMapApiKey))
+        {
+            Console.WriteLine("Warning: HERE_MAPS_API_KEY not set. Distance calculation will not work.");
+            hereMapApiKey = ""; // Allow bot to run even without API key
         }
 
         _botClient = new TelegramBotClient(botToken);
@@ -47,10 +54,11 @@ class Program
         // IGeocoder geocoder = new OpenStreetMapGeocoderService();
         
         IStationDetailsService stationDetailsService = new GasBuddyStationDetailsService();
+        IDistanceCalculator distanceCalculator = new HereMapDistanceCalculator(hereMapApiKey);
 
         // Initialize services
         //_requestService = new RequestService();
-        _requestService = new RequestMapService(geocoder, stationDetailsService);
+        _requestService = new RequestMapService(geocoder, stationDetailsService, distanceCalculator);
         _gasStationFinder = new GasStationFinder(_requestService);
 
         // Handle Ctrl+C gracefully
