@@ -95,13 +95,13 @@ public class GasBuddyStationDetailsService : IStationDetailsService
     {
         try
         {
-            string address = await _reverseGeocoder.GetAddressAsync(latitude, longitude);
+            var geocodeInfo = await _reverseGeocoder.GetAddressAsync(latitude, longitude);
             
             return new StationDetails
             {
                 Id = 0,
-                Name = "Location",
-                Address = address,
+                Name = geocodeInfo.Name,
+                Address = geocodeInfo.Address,
                 Latitude = latitude,
                 Longitude = longitude,
                 City = string.Empty,
