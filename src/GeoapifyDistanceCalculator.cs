@@ -83,8 +83,8 @@ public class GeoapifyDistanceCalculator : IDistanceCalculator, IReverseGeocoder
 
             return new ReverseGeocodeInfo
             {
-                Name = result?.Name,
-                Address = result?.Results[0].Formatted ?? $"{latitude}, {longitude}"
+                Name = result?.Name ?? "Unknown",
+                Address = result?.Results[0].Address ?? $"{latitude}, {longitude}"
             };
         }
         catch (Exception ex)
@@ -110,13 +110,13 @@ public class GeoapifyDistanceCalculator : IDistanceCalculator, IReverseGeocoder
     private class GeoapifyRoutingResponse
     {
         [JsonPropertyName("features")]
-        public List<Feature> Features { get; set; }
+        public List<Feature> Features { get; set; } = new();
     }
 
     private class Feature
     {
         [JsonPropertyName("properties")]
-        public Properties Properties { get; set; }
+        public Properties Properties { get; set; } = new();
     }
 
     private class Properties
@@ -138,21 +138,36 @@ public class GeoapifyDistanceCalculator : IDistanceCalculator, IReverseGeocoder
     {
         [JsonPropertyName("formatted")]
         public string? Formatted { get; set; }
+
+        public string? Address
+        {
+            get
+            {
+                if (string.IsNullOrEmpty(Formatted) || char.IsDigit(Formatted[0]))
+                    return Formatted;
+
+                int commaIndex = Formatted.IndexOf(',');
+                return commaIndex >= 0 
+                    ? Formatted[(commaIndex + 1)..].TrimStart()
+                    : Formatted;
+            }
+        }
     }
 
     private class ReverseGeocodeResult
     {
         [JsonPropertyName("results")]
-        public List<Result> Results { get; set; }
+        public List<Result> Results { get; set; } = new();
 
         public string Name 
         { 
             get
             {
-                if (string.IsNullOrEmpty(Results[0].Formatted) || !char.IsDigit(Results[0].Formatted[0]))
-                {
-                    return Results[0].Formatted.Split(',')[0];
-                }
+                var formatted = Results?.FirstOrDefault()?.Formatted;
+
+                if (!string.IsNullOrEmpty(formatted) && !char.IsDigit(formatted[0]))
+                    return formatted.Split(',')[0];
+
                 return "Unknown";
             }
         }

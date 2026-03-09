@@ -81,7 +81,7 @@ public class OpenStreetMapReverseGeocoder : IReverseGeocoder
         public string? DisplayName { get; set; }
         
         [JsonPropertyName("address")]
-        public Address Address { get; set; }
+        public Address Address { get; set; } = new();
 
         public string GetAddress(){
             return Address?.HouseNumber + " " + Address?.Road + ", " + Address?.City + ", " + Address?.State + " " + Address?.Postcode;
@@ -123,5 +123,4 @@ public class OpenStreetMapReverseGeocoder : IReverseGeocoder
         [JsonPropertyName("country_code")]
         public string? CountryCode { get; set; }
     }
-
 }
