@@ -23,7 +23,7 @@ public enum OutputFormat
 ///
 /// Configure via Replit Secrets (no code changes needed):
 ///
-///   OUTPUT_FORMAT      = Compact | Card | Minimal | Table   (default: Table)
+///   OUTPUT_FORMAT      = Compact | Card | Minimal | Table   (default: Compact)
 ///   MAX_RESULTS        = integer                     (default: 10)
 ///   SHOW_BEST_PRICE    = true | false                (default: true)
 ///   SEARCHING_EMOJI    = any emoji/text              (default: 🔍)
@@ -32,7 +32,7 @@ public enum OutputFormat
 public sealed class StationFormatterConfig
 {
     /// <summary>How to render each station row.</summary>
-    public OutputFormat Format { get; init; } = OutputFormat.Table;
+    public OutputFormat Format { get; init; } = OutputFormat.Compact;
 
     /// <summary>Maximum stations to show. 0 = unlimited.</summary>
     public int MaxResults { get; init; } = 10;

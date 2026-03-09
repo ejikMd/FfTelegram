@@ -23,6 +23,12 @@ public class GasStationFinder
     {
         try
         {
+            //List<FuelStation> stations = new List<FuelStation>(3);
+            //stations.Add(new FuelStation("Costco GasStation", "9430 Boulevard Taschereau, Brossard, QC J4X 2T7", 0, 0, 153.90m));
+            //stations.Add(new FuelStation("Shell", "4900 Grande Allee, Longueuil, QC J4V 3K9, Canada", 0, 0, 172.90m));        
+            //stations[0].Distance = 1.2m;
+            //stations[1].Distance = 11.2m;
+
             var stations = await _requestService.GetDataAsync(searchGas);
 
             if (stations == null || stations.Count == 0)
