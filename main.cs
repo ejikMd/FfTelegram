@@ -19,7 +19,9 @@ class Program
                 o.IncludeScopes   = true;
                 o.TimestampFormat = "HH:mm:ss ";
             })
-            .SetMinimumLevel(LogLevel.Information));
+            .SetMinimumLevel(LogLevel.Information)
+            .AddFilter("Microsoft.AspNetCore", LogLevel.Warning)
+            .AddFilter("Microsoft.Hosting",    LogLevel.Warning));
 
         var logger = loggerFactory.CreateLogger<Program>();
 

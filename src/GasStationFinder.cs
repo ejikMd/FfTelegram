@@ -16,8 +16,13 @@ public class GasStationFinder
     {
         try
         {
+            //List<FuelStation> allStations = new List<FuelStation>(3);
+            //allStations.Add(new FuelStation("Costco GasStation", "9430 Boulevard Taschereau, Brossard, QC J4X 2T7", 0, 0, 153.90m));
+            //allStations.Add(new FuelStation("Shell", "4900 Grande Allee, Longueuil, QC J4V 3K9, Canada", 0, 0, 172.90m));           
+            //allStations[0].Distance = 1.2m;
+            //allStations[1].Distance = 11.2m;
             var allStations = await _requestService.GetDataAsync(searchGas);
-
+            
             if (allStations == null || allStations.Count == 0)
             {
                 return $"⛽ <b>No Gas Stations Found</b>\n\n" +
@@ -32,16 +37,16 @@ public class GasStationFinder
             sb.AppendLine();
 
             sb.AppendLine("<pre>");
-            sb.AppendLine($"{"Name",-15} {"Price",-8} {"Address",-50} {"Distance",-10}");
-            sb.AppendLine(new string('-', 85));
+            sb.AppendLine($"{"Name",-13} {"Price",-7} {"Address",-60} {"Dist",-5}");
+            sb.AppendLine(new string('-', 88));
 
             foreach (var station in allStations)
             {
                 var name = station.Name.Length > 13 ? station.Name.Substring(0, 10) + "..." : station.Name;
                 var price = station.Price > 0 ? $"${station.Price:F2}" : "N/A";
-                var address = station.Address.Length > 48 ? station.Address.Substring(0, 45) + "..." : station.Address;
+                var address = station.Address.Length > 57 ? station.Address.Substring(0, 57) + "..." : station.Address;
                 var distance = station.Distance;
-                sb.AppendLine($"{name,-15} {price,-8} {address,-60} {distance:F1}");
+                sb.AppendLine($"{name,-13} {price,-7} {address,-60}|{distance:F1}");
             }
 
             sb.AppendLine("</pre>");
