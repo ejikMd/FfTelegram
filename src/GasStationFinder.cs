@@ -32,16 +32,16 @@ public class GasStationFinder
             sb.AppendLine();
 
             sb.AppendLine("<pre>");
-            sb.AppendLine($"{"Name",-25} {"Price",-10} {"Address",-40} {"Distance",-10}");
-            sb.AppendLine(new string('-', 87));
+            sb.AppendLine($"{"Name",-15} {"Price",-8} {"Address",-50} {"Distance",-10}");
+            sb.AppendLine(new string('-', 85));
 
             foreach (var station in allStations)
             {
-                var name = station.Name.Length > 23 ? station.Name.Substring(0, 20) + "..." : station.Name;
+                var name = station.Name.Length > 13 ? station.Name.Substring(0, 10) + "..." : station.Name;
                 var price = station.Price > 0 ? $"${station.Price:F2}" : "N/A";
-                var address = station.Address.Length > 38 ? station.Address.Substring(0, 35) + "..." : station.Address;
+                var address = station.Address.Length > 48 ? station.Address.Substring(0, 45) + "..." : station.Address;
                 var distance = station.Distance;
-                sb.AppendLine($"{name,-25} {price,-10} {address,-40} {distance:F1}");
+                sb.AppendLine($"{name,-15} {price,-8} {address,-60} {distance:F1}");
             }
 
             sb.AppendLine("</pre>");
