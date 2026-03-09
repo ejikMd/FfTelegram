@@ -114,7 +114,7 @@ public class RequestMapService : IRequestService
             {
                 Console.WriteLine($"Received {mapResponse.primaryStations.Count} primary stations ");
                 int i = 0;
-                foreach (var station in mapResponse.primaryStations)
+                foreach (var station in mapResponse.primaryStations.Take(3))
                 {
                     // Skip stations without valid price
                     if (station.price == "--" || string.IsNullOrEmpty(station.price))

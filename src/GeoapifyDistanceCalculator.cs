@@ -1,6 +1,7 @@
 using System;
 using System.Net.Http;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
 public class GeoapifyDistanceCalculator : IDistanceCalculator
@@ -26,7 +27,7 @@ public class GeoapifyDistanceCalculator : IDistanceCalculator
                         $"mode=drive" +
                         $"&waypoints={startLatitude},{startLongitude}|{endLatitude},{endLongitude}" +
                         $"&apiKey={_apiKey}";
-
+            
             var response = await _httpClient.GetAsync(url);
 
             if (!response.IsSuccessStatusCode)
@@ -39,12 +40,12 @@ public class GeoapifyDistanceCalculator : IDistanceCalculator
             var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
             var result = JsonSerializer.Deserialize<GeoapifyRoutingResponse>(content, options);
 
-            if (result?.routes?.Count > 0 && result.routes[0].summary != null)
+            if (result?.Features?.Count > 0 && result.Features[0].Properties != null)
             {
                 // Return distance in km
-                //double distanceInMeters = result.routes[0].summary.distance;
-                //decimal distanceInKm = (decimal)(distanceInMeters / 1000.0);
-                return 0m;//$"{distanceInKm:F1} km";
+                double distanceInMeters = result.Features[0].Properties.Distance;
+                decimal distanceInKm = (decimal)(distanceInMeters / 1000.0);
+                return distanceInKm;
             }
 
             return 0m;
@@ -67,17 +68,28 @@ public class GeoapifyDistanceCalculator : IDistanceCalculator
 
     private class GeoapifyRoutingResponse
     {
-        public System.Collections.Generic.List<Route>? routes { get; set; }
+        [JsonPropertyName("features")]
+        public List<Feature> Features { get; set; }
     }
 
-    private class Route
+    public class Feature
     {
-        public RouteSummary? summary { get; set; }
+        [JsonPropertyName("properties")]
+        public Properties Properties { get; set; }
     }
 
-    private class RouteSummary
+    public class Properties
     {
-        public double distance { get; set; }
-        public int duration { get; set; }
+        [JsonPropertyName("units")]
+        public string Units { get; set; }
+
+        [JsonPropertyName("distance")]
+        public int Distance { get; set; }
+
+        [JsonPropertyName("distance_units")]
+        public string DistanceUnits { get; set; }
+
+        [JsonPropertyName("time")]
+        public double Time { get; set; }
     }
 }

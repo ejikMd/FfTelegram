@@ -54,7 +54,6 @@ class Program
         IDistanceCalculator distanceCalculator = new GeoapifyDistanceCalculator(geoapifyApiKey);
 
         // Initialize services
-        //_requestService = new RequestService();
         _requestService = new RequestMapService(geocoder, stationDetailsService, distanceCalculator);
         _gasStationFinder = new GasStationFinder(_requestService);
 

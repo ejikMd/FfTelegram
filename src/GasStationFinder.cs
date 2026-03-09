@@ -40,7 +40,8 @@ public class GasStationFinder
                 var name = station.Name.Length > 23 ? station.Name.Substring(0, 20) + "..." : station.Name;
                 var price = station.Price > 0 ? $"${station.Price:F2}" : "N/A";
                 var address = station.Address.Length > 38 ? station.Address.Substring(0, 35) + "..." : station.Address;
-                sb.AppendLine($"{name,-25} {price,-10} {address,-40}");
+                var distance = station.Distance;
+                sb.AppendLine($"{name,-25} {price,-10} {address,-40} {distance:F1}");
             }
 
             sb.AppendLine("</pre>");
