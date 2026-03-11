@@ -12,6 +12,16 @@ class Program
 {
     static async Task Main(string[] args)
     {
+        // ── Global exception guards (prevent silent crashes) ──────────────────
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+            Console.Error.WriteLine($"[FATAL] Unhandled exception: {e.ExceptionObject}");
+
+        TaskScheduler.UnobservedTaskException += (_, e) =>
+        {
+            Console.Error.WriteLine($"[WARN] Unobserved task exception: {e.Exception}");
+            e.SetObserved(); // prevent process crash
+        };
+
         // ── Logging ──────────────────────────────────────────────────────────
         using var loggerFactory = LoggerFactory.Create(b =>
             b.AddSimpleConsole(o =>
@@ -19,7 +29,7 @@ class Program
                 o.IncludeScopes   = true;
                 o.TimestampFormat = "HH:mm:ss ";
             })
-            .SetMinimumLevel(LogLevel.Warning)
+            .SetMinimumLevel(LogLevel.Information)
             .AddFilter("Microsoft.AspNetCore", LogLevel.Warning)
             .AddFilter("Microsoft.Hosting",    LogLevel.Warning)
             .AddFilter("MessageRouter",        LogLevel.Warning));
