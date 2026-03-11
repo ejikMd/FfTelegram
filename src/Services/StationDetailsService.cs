@@ -29,10 +29,9 @@ public class StationDetailsService : IStationDetailsService
     private readonly IReverseGeocoder _reverseGeocoder;
     private bool _disposed = false;
 
-    public StationDetailsService(string apiKey)
+    public StationDetailsService(IReverseGeocoder reverseGeocoder)
     {
-        //_reverseGeocoder = new OpenStreetMapReverseGeocoder();
-        _reverseGeocoder = new GeoapifyDistanceCalculator(apiKey);
+        _reverseGeocoder = reverseGeocoder ?? throw new ArgumentNullException(nameof(reverseGeocoder));
     }
 
     public async Task<StationDetails> GetStationDetailsAsync(int stationId)

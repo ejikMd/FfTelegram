@@ -4,12 +4,12 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
-public class GeoapifyDistanceCalculator : IDistanceCalculator, IReverseGeocoder
+public class GeoapifyLocationService : IDistanceCalculator, IReverseGeocoder
 {
     private readonly string _apiKey;
     private bool _disposed = false;
 
-    public GeoapifyDistanceCalculator(string apiKey)
+    public GeoapifyLocationService(string apiKey)
     {
         if (string.IsNullOrEmpty(apiKey))
             throw new ArgumentNullException(nameof(apiKey), "Geoapify API key is required");
@@ -55,7 +55,7 @@ public class GeoapifyDistanceCalculator : IDistanceCalculator, IReverseGeocoder
         }
     }
 
-    public async Task<string> GetNameAsync(double? latitude, double? longitude)
+    private async Task<string> GetNameAsync(double? latitude, double? longitude)
     {    
         string content = "";
         string url = $"https://api.geoapify.com/v2/places?categories=service.vehicle" +
@@ -64,7 +64,7 @@ public class GeoapifyDistanceCalculator : IDistanceCalculator, IReverseGeocoder
         $"&bias=proximity:{longitude},{latitude}" +
         $"&limit=2" +
         $"&apiKey={_apiKey}";
-        
+
         try
         {          
             var response = await HttpClientProvider.Instance.GetAsync(url);
@@ -77,7 +77,7 @@ public class GeoapifyDistanceCalculator : IDistanceCalculator, IReverseGeocoder
             content = await response.Content.ReadAsStringAsync();
             var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
             var result = JsonSerializer.Deserialize<GeoapifyRoutingResponse>(content, options);
-            
+
             if (result?.Features?.Count > 0 && result.Features[0].Properties != null)
                 return result?.Features[0].Properties.Name ?? "Unknown";
 
@@ -101,7 +101,7 @@ public class GeoapifyDistanceCalculator : IDistanceCalculator, IReverseGeocoder
             $"&lat={latitude}&lon={longitude}" +
             $"&apiKey={_apiKey}";
             //Console.WriteLine(url);
-            
+
             var response = await HttpClientProvider.Instance.GetAsync(url);
             if (!response.IsSuccessStatusCode)
             {
@@ -116,18 +116,24 @@ public class GeoapifyDistanceCalculator : IDistanceCalculator, IReverseGeocoder
             string content = await response.Content.ReadAsStringAsync();
             var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
             var result = JsonSerializer.Deserialize<ReverseGeocodeResult>(content, options);
-           
-            //Console.WriteLine(content);
-            var strationInfo = result?.Results[0];
 
-            var stationName = await GetNameAsync(result?.Results[0].Latitude, result?.Results[0].Longitude);
+            //Console.WriteLine(content);
+            var strationInfo = result?.Results.Count > 0 ? result.Results[0] : null;
+
+            var stationName = "Unknown";
+            //GoogleMapsPlacesService placeService = new GoogleMapsPlacesService();
+            //var stationName = await placeService.GetNearbyGasStationNameAsync(latitude, longitude);
+            
+            if (stationName == "Unknown")
+                stationName = await GetNameAsync(strationInfo?.Latitude, strationInfo?.Longitude);
             if (stationName == "Unknown")
                 stationName = await GetNameAsync(latitude, longitude);
+
             
             return new ReverseGeocodeInfo
             {
                 Name = stationName,
-                Address = strationInfo.Address ?? $"{latitude}, {longitude}"
+                Address = strationInfo?.Address ?? $"{latitude}, {longitude}"
             };
         }
         catch (Exception ex)
@@ -165,7 +171,7 @@ public class GeoapifyDistanceCalculator : IDistanceCalculator, IReverseGeocoder
     {
         [JsonPropertyName("name")]
         public string? Name { get; set; }
-        
+
         [JsonPropertyName("units")]
         public string? Units { get; set; }
 
@@ -189,7 +195,7 @@ public class GeoapifyDistanceCalculator : IDistanceCalculator, IReverseGeocoder
 
         [JsonPropertyName("lat")]
         public double? Latitude { get; set; }
-        
+
         public string? Address
         {
             get
@@ -224,5 +230,5 @@ public class GeoapifyDistanceCalculator : IDistanceCalculator, IReverseGeocoder
         }
     }
 
-    
+
 }

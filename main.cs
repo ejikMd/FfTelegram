@@ -19,7 +19,7 @@ class Program
                 o.IncludeScopes   = true;
                 o.TimestampFormat = "HH:mm:ss ";
             })
-            .SetMinimumLevel(LogLevel.Information)
+            .SetMinimumLevel(LogLevel.Warning)
             .AddFilter("Microsoft.AspNetCore", LogLevel.Warning)
             .AddFilter("Microsoft.Hosting",    LogLevel.Warning)
             .AddFilter("MessageRouter",        LogLevel.Warning));
@@ -47,8 +47,10 @@ class Program
         var botClient  = new TelegramBotClient(botToken);
 
         IGeocoder              geocoder              = new GeocoderCaService();
-        IStationDetailsService stationDetailsService = new StationDetailsService(geoapifyKey);
-        IDistanceCalculator    distanceCalculator    = new GeoapifyDistanceCalculator(geoapifyKey);
+        IReverseGeocoder       reverseGeocoder    = new GeoapifyLocationService(geoapifyKey);
+        IDistanceCalculator    distanceCalculator    = new GeoapifyLocationService(geoapifyKey);
+        
+        IStationDetailsService stationDetailsService = new StationDetailsService(reverseGeocoder);
         var formatterConfig  = StationFormatterConfig.FromEnvironment();
         GasBuddyHttpClient gasBuddyClient = new GasBuddyHttpClient();
         IRequestService        requestService        = new RequestMapService(geocoder, stationDetailsService, distanceCalculator, formatterConfig, gasBuddyClient);
