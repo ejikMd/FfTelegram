@@ -50,7 +50,8 @@ class Program
         IStationDetailsService stationDetailsService = new StationDetailsService(geoapifyKey);
         IDistanceCalculator    distanceCalculator    = new GeoapifyDistanceCalculator(geoapifyKey);
         var formatterConfig  = StationFormatterConfig.FromEnvironment();
-        IRequestService        requestService        = new RequestMapService(geocoder, stationDetailsService, distanceCalculator, formatterConfig);
+        GasBuddyHttpClient gasBuddyClient = new GasBuddyHttpClient();
+        IRequestService        requestService        = new RequestMapService(geocoder, stationDetailsService, distanceCalculator, formatterConfig, gasBuddyClient);
         var formatStore      = new UserFormatStore(formatterConfig);
         var gasStationFinder = new GasStationFinder(requestService, formatterConfig, formatStore);
         logger.LogInformation("Output format: {Format}, MaxResults: {Max}", formatterConfig.Format, formatterConfig.MaxResults);
