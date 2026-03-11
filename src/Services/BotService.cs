@@ -10,27 +10,37 @@ using Telegram.Bot.Types.Enums;
 
 /// <summary>
 /// Manages the Telegram bot lifecycle: startup, supervised polling with
-/// automatic reconnection, and graceful shutdown.
+/// automatic reconnection, graceful stop, and restart.
+///
+/// Two-level cancellation:
+///   _processCts  – cancelled only on full process shutdown (Ctrl+C).
+///   _pollCts     – cancelled to stop polling; recreated on each restart.
 /// </summary>
 public sealed class BotService : IDisposable
 {
-    private readonly ITelegramBotClient _botClient;
-    private readonly MessageRouter _router;
+    private readonly ITelegramBotClient  _botClient;
+    private readonly MessageRouter       _router;
     private readonly ILogger<BotService> _logger;
-    private readonly CancellationTokenSource _cts;
+
+    // Process-level token — cancelled only by Ctrl+C / RequestShutdown().
+    private readonly CancellationTokenSource _processCts;
+
+    // Polling-level token — cancelled by RequestStop() and recreated by RestartAsync().
+    private CancellationTokenSource _pollCts;
 
     private volatile bool _initialized;
-    private volatile bool _shuttingDown;
+    private volatile bool _stopped;       // polling stopped (but process alive)
+    private volatile bool _shuttingDown;  // full process shutdown requested
     private int _messagesProcessed;
     private readonly DateTime _startTime = DateTime.UtcNow;
 
     // Reconnection config
-    private static readonly TimeSpan InitialDelay   = TimeSpan.FromSeconds(5);
-    private static readonly TimeSpan MaxDelay        = TimeSpan.FromMinutes(2);
-    private static readonly int MaxRetries           = int.MaxValue; // retry forever
+    private static readonly TimeSpan InitialDelay = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan MaxDelay      = TimeSpan.FromMinutes(2);
 
     public bool IsInitialized  => _initialized;
     public bool IsShuttingDown => _shuttingDown;
+    public bool IsStopped      => _stopped;
     public int  MessagesProcessed => _messagesProcessed;
     public TimeSpan Uptime     => DateTime.UtcNow - _startTime;
 
@@ -38,45 +48,82 @@ public sealed class BotService : IDisposable
         ITelegramBotClient botClient,
         MessageRouter router,
         ILogger<BotService> logger,
-        CancellationTokenSource cts)
+        CancellationTokenSource processCts)
     {
-        _botClient = botClient;
-        _router    = router;
-        _logger    = logger;
-        _cts       = cts;
+        _botClient   = botClient;
+        _router      = router;
+        _logger      = logger;
+        _processCts  = processCts;
+        _pollCts     = CancellationTokenSource.CreateLinkedTokenSource(processCts.Token);
     }
 
+    // -------------------------------------------------------------------------
+    // Public lifecycle API
+    // -------------------------------------------------------------------------
+
     /// <summary>
-    /// Clears stale updates, then launches a supervised polling loop
-    /// that automatically reconnects on failure.
+    /// Drains stale updates then launches the supervised polling loop.
     /// </summary>
     public async Task StartAsync()
     {
-        await _botClient.DeleteWebhook(cancellationToken: _cts.Token);
+        await _botClient.DeleteWebhook(cancellationToken: _processCts.Token);
         _logger.LogInformation("Webhook deleted.");
 
-        // Drain any stale updates to avoid replaying old messages on restart.
-        var pending = await _botClient.GetUpdates(cancellationToken: _cts.Token);
+        var pending = await _botClient.GetUpdates(cancellationToken: _processCts.Token);
         if (pending.Length > 0)
         {
             var maxOffset = pending.Max(u => u.Id) + 1;
-            await _botClient.GetUpdates(offset: maxOffset, cancellationToken: _cts.Token);
+            await _botClient.GetUpdates(offset: maxOffset, cancellationToken: _processCts.Token);
             _logger.LogInformation("Drained {Count} stale updates.", pending.Length);
         }
 
         _initialized = true;
+        _stopped     = false;
         _logger.LogInformation("Bot polling starting.");
-
-        // Fire-and-forget supervised loop — keeps running until _cts is cancelled.
-        _ = Task.Run(() => SupervisedPollingLoopAsync(_cts.Token), _cts.Token);
+        _ = Task.Run(() => SupervisedPollingLoopAsync(_pollCts.Token));
     }
 
+    /// <summary>
+    /// Stops polling without killing the process. Allows <see cref="RestartAsync"/> afterwards.
+    /// </summary>
+    public void RequestStop()
+    {
+        if (_stopped || _shuttingDown) return;
+        _stopped = true;
+        _logger.LogInformation("Bot stop requested.");
+        _pollCts.Cancel();
+    }
+
+    /// <summary>
+    /// Restarts polling after a <see cref="RequestStop"/>.
+    /// No-op if already running or if the process is shutting down.
+    /// </summary>
+    public async Task RestartAsync()
+    {
+        if (!_stopped || _shuttingDown) return;
+
+        _logger.LogInformation("Bot restart requested.");
+
+        // Dispose the old poll CTS and create a fresh one linked to the process token.
+        _pollCts.Dispose();
+        _pollCts = CancellationTokenSource.CreateLinkedTokenSource(_processCts.Token);
+
+        _stopped = false;
+        _logger.LogInformation("Bot polling restarting.");
+        await Task.Run(() => SupervisedPollingLoopAsync(_pollCts.Token));
+    }
+
+    /// <summary>
+    /// Stops polling AND signals the process to exit (Ctrl+C path).
+    /// </summary>
     public void RequestShutdown()
     {
         if (_shuttingDown) return;
         _shuttingDown = true;
-        _logger.LogInformation("Shutdown requested.");
-        _cts.Cancel();
+        _stopped      = true;
+        _logger.LogInformation("Full shutdown requested.");
+        _pollCts.Cancel();
+        _processCts.Cancel();
     }
 
     // -------------------------------------------------------------------------
@@ -98,18 +145,16 @@ public sealed class BotService : IDisposable
 
                 var options = new ReceiverOptions
                 {
-                    AllowedUpdates = Array.Empty<UpdateType>(),
+                    AllowedUpdates     = Array.Empty<UpdateType>(),
                     DropPendingUpdates = false
                 };
 
-                // ReceiveAsync blocks until ct is cancelled or a fatal error throws.
                 await _botClient.ReceiveAsync(
                     HandleUpdateAsync,
                     HandleErrorAsync,
                     receiverOptions: options,
                     cancellationToken: ct);
 
-                // ReceiveAsync returned without exception = cancellation was requested.
                 _logger.LogInformation("Polling stopped cleanly.");
                 break;
             }
@@ -120,7 +165,7 @@ public sealed class BotService : IDisposable
             }
             catch (Exception ex)
             {
-                if (_shuttingDown) break;
+                if (_stopped || _shuttingDown) break;
 
                 _logger.LogError(ex,
                     "Polling crashed (attempt #{Attempt}). Reconnecting in {Delay}.",
@@ -129,7 +174,6 @@ public sealed class BotService : IDisposable
                 try { await Task.Delay(delay, ct); }
                 catch (OperationCanceledException) { break; }
 
-                // Exponential backoff up to MaxDelay
                 delay = delay < MaxDelay
                     ? TimeSpan.FromTicks(Math.Min(delay.Ticks * 2, MaxDelay.Ticks))
                     : MaxDelay;
@@ -148,9 +192,8 @@ public sealed class BotService : IDisposable
         Update update,
         CancellationToken ct)
     {
-        if (_shuttingDown) return;
+        if (_stopped || _shuttingDown) return;
 
-        // Reset backoff on successful update
         if (update.Message is { Text: { } text } message)
         {
             Interlocked.Increment(ref _messagesProcessed);
@@ -175,15 +218,17 @@ public sealed class BotService : IDisposable
     {
         if (exception.Message.Contains("terminated by other getUpdates request"))
         {
-            _logger.LogWarning("Conflict: another bot instance detected. Shutting down.");
-            RequestShutdown();
+            _logger.LogWarning("Conflict: another bot instance detected. Stopping polling.");
+            RequestStop();
             return Task.CompletedTask;
         }
 
-        // All other errors are logged; the supervisor loop handles reconnection.
         _logger.LogWarning(exception, "Telegram polling error (will retry).");
         return Task.CompletedTask;
     }
 
-    public void Dispose() => _cts.Dispose();
+    public void Dispose()
+    {
+        _pollCts.Dispose();
+    }
 }

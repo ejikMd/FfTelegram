@@ -83,6 +83,7 @@ public static class WebServer
                     uptime            = botService.Uptime,
                     messagesProcessed = botService.MessagesProcessed,
                     timestamp         = DateTime.UtcNow,
+                    isStopped         = botService.IsStopped,
                     isShuttingDown    = botService.IsShuttingDown
                 });
         });
@@ -91,14 +92,32 @@ public static class WebServer
 
         app.MapPost("/shutdown", async ctx =>
         {
-            if (!botService.IsShuttingDown)
+            if (!botService.IsStopped && !botService.IsShuttingDown)
             {
-                botService.RequestShutdown();
-                await ctx.Response.WriteAsync("Shutdown signal sent.");
+                botService.RequestStop();
+                await ctx.Response.WriteAsync("Bot stopped.");
             }
             else
             {
-                await ctx.Response.WriteAsync("Already shutting down.");
+                await ctx.Response.WriteAsync("Bot is already stopped.");
+            }
+        });
+
+        app.MapPost("/start", async ctx =>
+        {
+            if (botService.IsStopped && !botService.IsShuttingDown)
+            {
+                await botService.RestartAsync();
+                await ctx.Response.WriteAsync("Bot started.");
+            }
+            else if (botService.IsShuttingDown)
+            {
+                ctx.Response.StatusCode = 503;
+                await ctx.Response.WriteAsync("Process is shutting down. Restart the server.");
+            }
+            else
+            {
+                await ctx.Response.WriteAsync("Bot is already running.");
             }
         });
 
@@ -120,13 +139,15 @@ public static class WebServer
         // Returns 200 when the bot is healthy, 503 when stopped.
         app.MapMethods("/", new[] { "GET", "HEAD" }, async ctx =>
         {
-            var isRunning = botService.IsInitialized && !botService.IsShuttingDown;
+            var isRunning = botService.IsInitialized && !botService.IsStopped && !botService.IsShuttingDown;
             ctx.Response.StatusCode = isRunning ? 200 : 503;
 
             if (ctx.Request.Method == HttpMethods.Head) return;
 
             var color  = isRunning ? "green" : "red";
-            var status = isRunning ? "Running" : "Stopped";
+            var status = botService.IsShuttingDown ? "Shutting Down"
+                       : botService.IsStopped      ? "Stopped"
+                                                   : "Running";
 
             ctx.Response.ContentType = "text/html";
             await ctx.Response.WriteAsync($@"
@@ -138,7 +159,11 @@ public static class WebServer
   <style>
     body {{ font-family: Arial, sans-serif; padding: 2rem; max-width: 600px; margin: auto; }}
     .badge {{ color: {color}; font-weight: bold; }}
-    button {{ margin-top: 1rem; padding: .5rem 1rem; cursor: pointer; }}
+    .controls {{ display: flex; gap: .75rem; margin-top: 1rem; flex-wrap: wrap; }}
+    button {{ padding: .5rem 1.2rem; cursor: pointer; border: 1px solid #ccc; border-radius: 4px; font-size: .95rem; }}
+    button:disabled {{ opacity: .45; cursor: not-allowed; }}
+    .btn-start    {{ background: #d4edda; }}
+    .btn-shutdown {{ background: #f8d7da; }}
   </style>
 </head>
 <body>
@@ -150,12 +175,21 @@ public static class WebServer
     <a href='/health'>Health</a> ·
     <a href='/status'>Status JSON</a> ·
     <a href='/ready'>Ready</a> ·
-    <a href='/live'>Live</a>
+    <a href='/live'>Live</a> ·
     <a href='/check'>Check</a>
   </p>
-  <button onclick=""fetch('/shutdown',{{method:'POST'}}).then(r=>r.text()).then(alert)"">
-    Shutdown Bot
-  </button>
+  <div class='controls'>
+    <button class='btn-start'
+            {(isRunning || botService.IsShuttingDown ? "disabled" : "")}
+            onclick=""fetch('/start',{{method:'POST'}}).then(r=>r.text()).then(t=>{{alert(t);location.reload();}})"">
+      Start Bot
+    </button>
+    <button class='btn-shutdown'
+            {(!isRunning || botService.IsShuttingDown ? "disabled" : "")}
+            onclick=""fetch('/shutdown',{{method:'POST'}}).then(r=>r.text()).then(t=>{{alert(t);location.reload();}})"">
+      Stop Bot
+    </button>
+  </div>
 </body>
 </html>");
         });
