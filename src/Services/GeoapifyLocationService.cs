@@ -200,11 +200,16 @@ public class GeoapifyLocationService : IDistanceCalculator, IReverseGeocoder
         {
             get
             {
-                if (string.IsNullOrEmpty(Formatted) || char.IsDigit(Formatted[0]))
+                if (string.IsNullOrEmpty(Formatted))
+                    return Formatted;
+
+                // If the formatted string starts with a digit it's a house-number-first
+                // address — return as-is. Otherwise strip the place name before the comma.
+                if (char.IsDigit(Formatted[0]))
                     return Formatted;
 
                 int commaIndex = Formatted.IndexOf(',');
-                return commaIndex >= 0 
+                return commaIndex >= 0
                     ? Formatted[(commaIndex + 1)..].TrimStart()
                     : Formatted;
             }
