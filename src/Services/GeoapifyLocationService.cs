@@ -64,7 +64,8 @@ public class GeoapifyLocationService : IDistanceCalculator, IReverseGeocoder
         $"&bias=proximity:{longitude},{latitude}" +
         $"&limit=2" +
         $"&apiKey={_apiKey}";
-
+        //Console.WriteLine(url);
+        
         try
         {          
             var response = await HttpClientProvider.Instance.GetAsync(url);
@@ -75,18 +76,19 @@ public class GeoapifyLocationService : IDistanceCalculator, IReverseGeocoder
             }
 
             content = await response.Content.ReadAsStringAsync();
+            //Console.WriteLine(content);
             var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
             var result = JsonSerializer.Deserialize<GeoapifyRoutingResponse>(content, options);
 
-            if (result?.Features?.Count > 0 && result.Features[0].Properties != null)
+            //if (result?.Features?.Count > 0 && result.Features[0].Properties != null)
                 return result?.Features[0].Properties.Name ?? "Unknown";
 
-            return "Unknown";
+            //return "Unknown";
         }
         catch (Exception ex)
         {
-            //Console.WriteLine("URL: " + url);
-            //Console.WriteLine(content);
+            Console.WriteLine("URL: " + url);
+            Console.WriteLine(content);
             Console.WriteLine($"Error in finding name: {ex.Message}");
             return "Unknown";
         }
@@ -122,14 +124,13 @@ public class GeoapifyLocationService : IDistanceCalculator, IReverseGeocoder
 
             var stationName = "Unknown";
             //GoogleMapsPlacesService placeService = new GoogleMapsPlacesService();
-            //var stationName = await placeService.GetNearbyGasStationNameAsync(latitude, longitude);
-            
+            //stationName = await placeService.GetNearbyGasStationNameAsync(latitude, longitude);
+
             if (stationName == "Unknown")
                 stationName = await GetNameAsync(strationInfo?.Latitude, strationInfo?.Longitude);
             if (stationName == "Unknown")
                 stationName = await GetNameAsync(latitude, longitude);
 
-            
             return new ReverseGeocodeInfo
             {
                 Name = stationName,
@@ -200,16 +201,11 @@ public class GeoapifyLocationService : IDistanceCalculator, IReverseGeocoder
         {
             get
             {
-                if (string.IsNullOrEmpty(Formatted))
-                    return Formatted;
-
-                // If the formatted string starts with a digit it's a house-number-first
-                // address — return as-is. Otherwise strip the place name before the comma.
-                if (char.IsDigit(Formatted[0]))
+                if (string.IsNullOrEmpty(Formatted) || char.IsDigit(Formatted[0]))
                     return Formatted;
 
                 int commaIndex = Formatted.IndexOf(',');
-                return commaIndex >= 0
+                return commaIndex >= 0 
                     ? Formatted[(commaIndex + 1)..].TrimStart()
                     : Formatted;
             }
