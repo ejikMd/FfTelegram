@@ -49,9 +49,8 @@ class Program
         IGeocoder              geocoder              = new GeocoderCaService();
         IStationDetailsService stationDetailsService = new StationDetailsService(geoapifyKey);
         IDistanceCalculator    distanceCalculator    = new GeoapifyDistanceCalculator(geoapifyKey);
-        IRequestService        requestService        = new RequestMapService(geocoder, stationDetailsService, distanceCalculator);
-
         var formatterConfig  = StationFormatterConfig.FromEnvironment();
+        IRequestService        requestService        = new RequestMapService(geocoder, stationDetailsService, distanceCalculator, formatterConfig);
         var formatStore      = new UserFormatStore(formatterConfig);
         var gasStationFinder = new GasStationFinder(requestService, formatterConfig, formatStore);
         logger.LogInformation("Output format: {Format}, MaxResults: {Max}", formatterConfig.Format, formatterConfig.MaxResults);

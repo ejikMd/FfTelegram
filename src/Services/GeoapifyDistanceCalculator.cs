@@ -60,7 +60,7 @@ public class GeoapifyDistanceCalculator : IDistanceCalculator, IReverseGeocoder
         string content = "";
         string url = $"https://api.geoapify.com/v2/places?categories=service.vehicle" +
         $"&format=json" +
-        $"&filter=circle:{longitude},{latitude},500" +
+        $"&filter=circle:{longitude},{latitude},20" +
         $"&bias=proximity:{longitude},{latitude}" +
         $"&limit=2" +
         $"&apiKey={_apiKey}";
@@ -99,7 +99,8 @@ public class GeoapifyDistanceCalculator : IDistanceCalculator, IReverseGeocoder
             $"format=json" +
             $"&lat={latitude}&lon={longitude}" +
             $"&apiKey={_apiKey}";
-
+            Console.WriteLine(url);
+            
             var response = await HttpClientProvider.Instance.GetAsync(url);
             if (!response.IsSuccessStatusCode)
             {
@@ -114,7 +115,8 @@ public class GeoapifyDistanceCalculator : IDistanceCalculator, IReverseGeocoder
             string content = await response.Content.ReadAsStringAsync();
             var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
             var result = JsonSerializer.Deserialize<ReverseGeocodeResult>(content, options);
-
+           
+            Console.WriteLine(content);
             return new ReverseGeocodeInfo
             {
                 Name = await GetNameAsync(latitude, longitude),

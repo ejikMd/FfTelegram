@@ -52,4 +52,4 @@ outputType = "console"
 [userenv]
 
 [userenv.shared]
-OUTPUT_FORMAT = "Table"
+OUTPUT_FORMAT = "Card"

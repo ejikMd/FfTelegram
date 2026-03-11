@@ -104,8 +104,8 @@ public static class WebServer
 
         app.MapGet("/check", async context =>
         {
-            Console.WriteLine($"Running test on H8N2P7");
-            var stations = await gasStationFinder.FindAsync("H8N2P7");
+            Console.WriteLine($"Running test on H3V1H3");
+            var stations = await gasStationFinder.FindAsync("H3V1H3");
 
             await context.Response.WriteAsJsonAsync(new
             {

@@ -13,6 +13,7 @@ public class RequestMapService : IRequestService
     private readonly IGeocoder _geocoder;
     private readonly IStationDetailsService _stationDetailsService;
     private readonly IDistanceCalculator _distanceCalculator;
+    private readonly StationFormatterConfig _config;
     private readonly GasBuddyHttpClient _gasBuddyClient;
     private readonly Random _random = new Random();
     private bool _disposed = false;
@@ -20,11 +21,13 @@ public class RequestMapService : IRequestService
     public RequestMapService(
         IGeocoder geocoder,
         IStationDetailsService stationDetailsService,
-        IDistanceCalculator distanceCalculator)
+        IDistanceCalculator distanceCalculator,
+        StationFormatterConfig config)
     {
         _geocoder = geocoder ?? throw new ArgumentNullException(nameof(geocoder));
         _stationDetailsService = stationDetailsService ?? throw new ArgumentNullException(nameof(stationDetailsService));
         _distanceCalculator = distanceCalculator ?? throw new ArgumentNullException(nameof(distanceCalculator));
+        _config = config ?? throw new ArgumentNullException(nameof(config));
         _gasBuddyClient = new GasBuddyHttpClient();
     }
 
@@ -60,7 +63,7 @@ public class RequestMapService : IRequestService
     private async Task<List<FuelStation>> GetGasStationsByCoordinatesAsync(double latitude, double longitude)
     {
         // Add random delay before starting (3-7 seconds)
-        await Task.Delay(3000 + _random.Next(4000));
+        //await Task.Delay(3000 + _random.Next(4000));
 
         try
         {
@@ -176,13 +179,20 @@ public class RequestMapService : IRequestService
 
             Console.WriteLine($"Found {result.Count} stations with prices");
 
-            // Calculate distances for all stations
-            foreach (var station in result)
+            // Sort by price ascending and limit by MaxResults config
+            var sortedResult = result.OrderBy(s => s.Price).ToList();
+            var maxResults = _config.MaxResults > 0 ? _config.MaxResults : sortedResult.Count;
+            var limitedResult = sortedResult.Take(maxResults).ToList();
+
+            Console.WriteLine($"Limiting to {maxResults} results (found {result.Count} total)");
+
+            // Calculate distances for selected stations only
+            foreach (var station in limitedResult)
             {
                 station.Distance = await _distanceCalculator.CalculateDrivingDistanceAsync(latitude, longitude, station.Latitude, station.Longitude);
             }
 
-            return result.OrderBy(s => s.Price).ToList();
+            return limitedResult;
         }
         catch (Exception ex)
         {
