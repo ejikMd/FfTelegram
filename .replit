@@ -52,3 +52,4 @@ outputType = "console"
 [userenv]
 
 [userenv.shared]
+OUTPUT_FORMAT = "Table"

@@ -21,7 +21,8 @@ class Program
             })
             .SetMinimumLevel(LogLevel.Information)
             .AddFilter("Microsoft.AspNetCore", LogLevel.Warning)
-            .AddFilter("Microsoft.Hosting",    LogLevel.Warning));
+            .AddFilter("Microsoft.Hosting",    LogLevel.Warning)
+            .AddFilter("MessageRouter",        LogLevel.Warning));
 
         var logger = loggerFactory.CreateLogger<Program>();
 
