@@ -8,7 +8,6 @@ using System.Threading.Tasks;
 
 public class RequestService : IRequestService
 {
-    private readonly HttpClient _httpClient;
     private bool _disposed = false;
     private readonly string _gbcsrf;
     private readonly string _cfClearance;
@@ -26,28 +25,27 @@ public class RequestService : IRequestService
         _sessionId = "1wso33swfyxurobzyagau0pe";
         _optanonConsent = "isGpcEnabled=0&datestamp=Fri+Feb+27+2026+10%3A31%3A59+GMT-0500+(Eastern+Standard+Time)&version=202309.1.0&browserGpcFlag=0&isIABGlobal=false&hosts=&consentId=5d8e870c-f206-4c38-998c-39910b23c933&interactionCount=1&landingPath=NotLandingPage&groups=C0004%3A0%2CC0003%3A0%2CC0002%3A0%2CC0001%3A1&geolocation=CA%3BQC&AwaitingReconsent=false";
 
-        _httpClient = new HttpClient();
-        _httpClient.BaseAddress = new Uri("https://www.gasbuddy.com");
-        _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("*/*"));
-        _httpClient.DefaultRequestHeaders.Add("accept-language", "en-US,en;q=0.9,ru;q=0.8,ro;q=0.7,fr;q=0.6,sv;q=0.5");
-        _httpClient.DefaultRequestHeaders.Add("apollo-require-preflight", "true");
-        _httpClient.DefaultRequestHeaders.Add("dnt", "1");
-        _httpClient.DefaultRequestHeaders.Add("gbcsrf", _gbcsrf);
-        _httpClient.DefaultRequestHeaders.Add("origin", "https://www.gasbuddy.com");
-        _httpClient.DefaultRequestHeaders.Add("priority", "u=1, i");
-        _httpClient.DefaultRequestHeaders.Add("sec-ch-ua", "\"Not:A-Brand\";v=\"99\", \"Google Chrome\";v=\"145\", \"Chromium\";v=\"145\"");
-        _httpClient.DefaultRequestHeaders.Add("sec-ch-ua-arch", "\"x86\"");
-        _httpClient.DefaultRequestHeaders.Add("sec-ch-ua-bitness", "\"64\"");
-        _httpClient.DefaultRequestHeaders.Add("sec-ch-ua-full-version", "\"145.0.7632.110\"");
-        _httpClient.DefaultRequestHeaders.Add("sec-ch-ua-full-version-list", "\"Not:A-Brand\";v=\"99.0.0.0\", \"Google Chrome\";v=\"145.0.7632.110\", \"Chromium\";v=\"145.0.7632.110\"");
-        _httpClient.DefaultRequestHeaders.Add("sec-ch-ua-mobile", "?0");
-        _httpClient.DefaultRequestHeaders.Add("sec-ch-ua-model", "\"\"");
-        _httpClient.DefaultRequestHeaders.Add("sec-ch-ua-platform", "\"Windows\"");
-        _httpClient.DefaultRequestHeaders.Add("sec-ch-ua-platform-version", "\"19.0.0\"");
-        _httpClient.DefaultRequestHeaders.Add("sec-fetch-dest", "empty");
-        _httpClient.DefaultRequestHeaders.Add("sec-fetch-mode", "cors");
-        _httpClient.DefaultRequestHeaders.Add("sec-fetch-site", "same-origin");
-        _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36");
+        HttpClientProvider.Instance.BaseAddress = new Uri("https://www.gasbuddy.com");
+        HttpClientProvider.Instance.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("*/*"));
+        HttpClientProvider.Instance.DefaultRequestHeaders.Add("accept-language", "en-US,en;q=0.9,ru;q=0.8,ro;q=0.7,fr;q=0.6,sv;q=0.5");
+        HttpClientProvider.Instance.DefaultRequestHeaders.Add("apollo-require-preflight", "true");
+        HttpClientProvider.Instance.DefaultRequestHeaders.Add("dnt", "1");
+        HttpClientProvider.Instance.DefaultRequestHeaders.Add("gbcsrf", _gbcsrf);
+        HttpClientProvider.Instance.DefaultRequestHeaders.Add("origin", "https://www.gasbuddy.com");
+        HttpClientProvider.Instance.DefaultRequestHeaders.Add("priority", "u=1, i");
+        HttpClientProvider.Instance.DefaultRequestHeaders.Add("sec-ch-ua", "\"Not:A-Brand\";v=\"99\", \"Google Chrome\";v=\"145\", \"Chromium\";v=\"145\"");
+        HttpClientProvider.Instance.DefaultRequestHeaders.Add("sec-ch-ua-arch", "\"x86\"");
+        HttpClientProvider.Instance.DefaultRequestHeaders.Add("sec-ch-ua-bitness", "\"64\"");
+        HttpClientProvider.Instance.DefaultRequestHeaders.Add("sec-ch-ua-full-version", "\"145.0.7632.110\"");
+        HttpClientProvider.Instance.DefaultRequestHeaders.Add("sec-ch-ua-full-version-list", "\"Not:A-Brand\";v=\"99.0.0.0\", \"Google Chrome\";v=\"145.0.7632.110\", \"Chromium\";v=\"145.0.7632.110\"");
+        HttpClientProvider.Instance.DefaultRequestHeaders.Add("sec-ch-ua-mobile", "?0");
+        HttpClientProvider.Instance.DefaultRequestHeaders.Add("sec-ch-ua-model", "\"\"");
+        HttpClientProvider.Instance.DefaultRequestHeaders.Add("sec-ch-ua-platform", "\"Windows\"");
+        HttpClientProvider.Instance.DefaultRequestHeaders.Add("sec-ch-ua-platform-version", "\"19.0.0\"");
+        HttpClientProvider.Instance.DefaultRequestHeaders.Add("sec-fetch-dest", "empty");
+        HttpClientProvider.Instance.DefaultRequestHeaders.Add("sec-fetch-mode", "cors");
+        HttpClientProvider.Instance.DefaultRequestHeaders.Add("sec-fetch-site", "same-origin");
+        HttpClientProvider.Instance.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36");
 
         // Add cookies
         var cookieHeader = $"_cfuvid={_cfuvid}; " +
@@ -59,7 +57,7 @@ public class RequestService : IRequestService
                           $"cf_clearance={_cfClearance}; " +
                           $"OptanonConsent={_optanonConsent}";
 
-        _httpClient.DefaultRequestHeaders.Add("Cookie", cookieHeader);
+        HttpClientProvider.Instance.DefaultRequestHeaders.Add("Cookie", cookieHeader);
     }
 
     public async Task<List<FuelStation>> GetDataAsync(string startAddress)
@@ -200,7 +198,7 @@ public class RequestService : IRequestService
             // Add referer header
             request.Headers.Referrer = new Uri($"https://www.gasbuddy.com/home?search={Uri.EscapeDataString("J4W 2L1")}&fuel=1&method=all&maxAge=0");
 
-            var response = await _httpClient.SendAsync(request);
+            var response = await HttpClientProvider.Instance.SendAsync(request);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -228,10 +226,6 @@ public class RequestService : IRequestService
     {
         if (!_disposed)
         {
-            if (disposing)
-            {
-                _httpClient?.Dispose();
-            }
             _disposed = true;
         }
     }

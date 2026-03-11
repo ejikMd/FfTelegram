@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 
 public class GeoapifyDistanceCalculator : IDistanceCalculator, IReverseGeocoder
 {
-    private readonly HttpClient _httpClient;
     private readonly string _apiKey;
     private bool _disposed = false;
 
@@ -16,7 +15,6 @@ public class GeoapifyDistanceCalculator : IDistanceCalculator, IReverseGeocoder
             throw new ArgumentNullException(nameof(apiKey), "Geoapify API key is required");
 
         _apiKey = apiKey;
-        _httpClient = new HttpClient();
     }
 
     public async Task<decimal> CalculateDrivingDistanceAsync(double startLatitude, double startLongitude, double endLatitude, double endLongitude)
@@ -28,7 +26,7 @@ public class GeoapifyDistanceCalculator : IDistanceCalculator, IReverseGeocoder
                         $"&waypoints={startLatitude},{startLongitude}|{endLatitude},{endLongitude}" +
                         $"&apiKey={_apiKey}";
 
-            var response = await _httpClient.GetAsync(url);
+            var response = await HttpClientProvider.Instance.GetAsync(url);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -71,7 +69,7 @@ public class GeoapifyDistanceCalculator : IDistanceCalculator, IReverseGeocoder
         {          
 
 
-            var response = await _httpClient.GetAsync(url);
+            var response = await HttpClientProvider.Instance.GetAsync(url);
             if (!response.IsSuccessStatusCode)
             {
                 Console.WriteLine($"Finding name failed with status code: {response.StatusCode}");
@@ -102,7 +100,7 @@ public class GeoapifyDistanceCalculator : IDistanceCalculator, IReverseGeocoder
             $"&lat={latitude}&lon={longitude}" +
             $"&apiKey={_apiKey}";
 
-            var response = await _httpClient.GetAsync(url);
+            var response = await HttpClientProvider.Instance.GetAsync(url);
             if (!response.IsSuccessStatusCode)
             {
                 Console.WriteLine($"Reverse geocoding failed with status code: {response.StatusCode}");
@@ -138,7 +136,6 @@ public class GeoapifyDistanceCalculator : IDistanceCalculator, IReverseGeocoder
     {
         if (!_disposed)
         {
-            _httpClient?.Dispose();
             _disposed = true;
         }
     }

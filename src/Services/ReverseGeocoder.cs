@@ -16,12 +16,10 @@ public interface IReverseGeocoder : IDisposable
 
 public class OpenStreetMapReverseGeocoder : IReverseGeocoder
 {
-    private readonly HttpClient _httpClient;
     private bool _disposed = false;
 
     public OpenStreetMapReverseGeocoder()
     {
-        _httpClient = new HttpClient();
     }
 
     public async Task<ReverseGeocodeInfo> GetAddressAsync(double latitude, double longitude)
@@ -29,9 +27,10 @@ public class OpenStreetMapReverseGeocoder : IReverseGeocoder
         try
         {
             string url = $"https://nominatim.openstreetmap.org/reverse?format=json&lat={latitude}&lon={longitude}";
-            _httpClient.DefaultRequestHeaders.Add("User-Agent", "GasBuddyBot");
+            if (!HttpClientProvider.Instance.DefaultRequestHeaders.Contains("User-Agent"))
+                HttpClientProvider.Instance.DefaultRequestHeaders.Add("User-Agent", "GasBuddyBot");
 
-            var response = await _httpClient.GetAsync(url);
+            var response = await HttpClientProvider.Instance.GetAsync(url);
             if (!response.IsSuccessStatusCode)
             {
                 Console.WriteLine($"Reverse geocoding failed with status code: {response.StatusCode}");
@@ -67,7 +66,6 @@ public class OpenStreetMapReverseGeocoder : IReverseGeocoder
     {
         if (!_disposed)
         {
-            _httpClient?.Dispose();
             _disposed = true;
         }
     }

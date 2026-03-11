@@ -6,16 +6,16 @@ using System.Web;
 
 public class OpenStreetMapGeocoderService : IGeocoder
 {
-    private readonly HttpClient _httpClient;
     private bool _disposed = false;
 
     public OpenStreetMapGeocoderService()
     {
-        _httpClient = new HttpClient();
-        // Nominatim requires a proper User-Agent
-        _httpClient.DefaultRequestHeaders.Add("User-Agent", "TelegramGasBot/1.0 (contact@example.com)");
-        // Add referer as recommended by Nominatim
-        _httpClient.DefaultRequestHeaders.Add("Referer", "https://yourbot.com");
+        // Add headers if not already set (static client is shared)
+        if (!HttpClientProvider.Instance.DefaultRequestHeaders.Contains("User-Agent"))
+        {
+            HttpClientProvider.Instance.DefaultRequestHeaders.Add("User-Agent", "TelegramGasBot/1.0 (contact@example.com)");
+            HttpClientProvider.Instance.DefaultRequestHeaders.Add("Referer", "https://yourbot.com");
+        }
     }
 
     public async Task<(double latitude, double longitude)> GetCoordinatesAsync(string location)
@@ -26,7 +26,7 @@ public class OpenStreetMapGeocoderService : IGeocoder
             // Using Nominatim (OpenStreetMap) - free but rate limited
             string url = $"https://nominatim.openstreetmap.org/search?q={encodedLocation}&format=json&limit=1";
 
-            var response = await _httpClient.GetAsync(url);
+            var response = await HttpClientProvider.Instance.GetAsync(url);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -74,10 +74,6 @@ public class OpenStreetMapGeocoderService : IGeocoder
     {
         if (!_disposed)
         {
-            if (disposing)
-            {
-                _httpClient?.Dispose();
-            }
             _disposed = true;
         }
     }

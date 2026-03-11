@@ -6,14 +6,15 @@ using System.Web;
 
 public class GeocoderCaService : IGeocoder
 {
-    private readonly HttpClient _httpClient;
     private readonly string _apiKey;
     private bool _disposed = false;
 
     public GeocoderCaService(string apiKey = "")
     {
-        _httpClient = new HttpClient();
-        _httpClient.DefaultRequestHeaders.Add("User-Agent", "TelegramBot/1.0");
+        if (!HttpClientProvider.Instance.DefaultRequestHeaders.Contains("User-Agent"))
+        {
+            HttpClientProvider.Instance.DefaultRequestHeaders.Add("User-Agent", "TelegramBot/1.0");
+        }
         _apiKey = apiKey;
     }
 
@@ -29,7 +30,7 @@ public class GeocoderCaService : IGeocoder
                 url += $"&auth={_apiKey}";
             }
 
-            var response = await _httpClient.GetAsync(url);
+            var response = await HttpClientProvider.Instance.GetAsync(url);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -73,10 +74,6 @@ public class GeocoderCaService : IGeocoder
     {
         if (!_disposed)
         {
-            if (disposing)
-            {
-                _httpClient?.Dispose();
-            }
             _disposed = true;
         }
     }
