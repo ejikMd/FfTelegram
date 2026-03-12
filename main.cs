@@ -41,6 +41,7 @@ class Program
                     o.IncludeScopes   = true;
                     o.TimestampFormat = "HH:mm:ss ";
                     o.SingleLine      = true;
+                    o.UseUtcTimestamp = true
                 });
                 logging.SetMinimumLevel(LogLevel.Information);
             })
