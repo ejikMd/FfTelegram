@@ -7,7 +7,6 @@ modules = ["dotnet-7.0"]
 DOTNET_NOLOGO = "1"
 DOTNET_CLI_TELEMETRY_OPTOUT = "1"
 DOTNET_CLI_HOME = "$XDG_CACHE_HOME"
-BOT_TOKEN = "8709899242:AAFO__3U9cy5DbHvDnehGlGtONwEeI_qwkg"
 
 [gitHubImport]
 requiredFiles = [".replit", "replit.nix"]

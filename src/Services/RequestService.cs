@@ -53,7 +53,6 @@ public class RequestService : IRequestService
                           $"ASP.NET_SessionId={_sessionId}; " +
                           $"PreferredFuelId=1; " +
                           $"PreferredFuelType=A; " +
-                          $"__RequestVerificationToken=JLhXEZgEKRXz341pbmsqv9lEfuCpphH5pIAN9MKcRRMWolzxYD8KwDqVbG1etmFfKDrVeRMWyPGYAXzM3Sh-a_B-t2cg1VVprjlDBpY-rvw1; " +
                           $"cf_clearance={_cfClearance}; " +
                           $"OptanonConsent={_optanonConsent}";
 

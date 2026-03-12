@@ -8,7 +8,6 @@ using System.Threading.Tasks;
 
 public static class GasBuddyHttpClientBuilder
 {
-    private static readonly string _requestVerificationToken = "RV_9tJD3J9geShrpLxWI49iFLhLdXgM5c6Wd_lXYG8GwHnjEwGAQQXz90TvgmPMZc2QtPmSt8TINVxxOP5XwiQL6F8_TVX16fadBkpoTJ481";
     private static readonly string _cfClearance = "Dhb4Hnxusy08_QDXnQ4N4S8WLy7PD5XgFl.XsheX7to-1772229390-1.2.1.1-qFUpsVIwg8hE9j88RBDMsPxUkPhz9W_9fKXYvpcF0Ol2I2dh4C1h1BOP2L.MIXm1YuJzGwU8EH6oWUvHMdu9xLvIBIQ2rdsz2_z.EGvjHUXBo6fOI17wJ_FF9hqkO8BTFTqgmtJl400fIWhpUt3JEGZbHjiQl8jr8uPqm1sMK..4HMi7BEdISeyuyp8k5AzdBX1nWEpMyXmCdnJMB7GsoP5a6T2b7a78NEuZfsnjy9A";
     private static readonly string _cfuvid = "Ugmm2XJsZ7S8L0dr4v7NGTmDeyw1RiTtJxYkUHQzCWI-1772160532888-0.0.1.1-604800000";
     private static readonly string _sessionId = "1wso33swfyxurobzyagau0pe";
@@ -32,7 +31,6 @@ public static class GasBuddyHttpClientBuilder
         // Set up headers once
         _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("*/*"));
         _httpClient.DefaultRequestHeaders.Add("accept-language", "en-US,en;q=0.9,ru;q=0.8,ro;q=0.7,fr;q=0.6,sv;q=0.5");
-        _httpClient.DefaultRequestHeaders.Add("__requestverificationtoken", _requestVerificationToken);
         _httpClient.DefaultRequestHeaders.Add("dnt", "1");
         _httpClient.DefaultRequestHeaders.Add("origin", "https://www.gasbuddy.com");
         _httpClient.DefaultRequestHeaders.Add("priority", "u=1, i");
@@ -56,7 +54,6 @@ public static class GasBuddyHttpClientBuilder
                           $"ASP.NET_SessionId={_sessionId}; " +
                           $"PreferredFuelId=1; " +
                           $"PreferredFuelType=A; " +
-                          $"__RequestVerificationToken=JLhXEZgEKRXz341pbmsqv9lEfuCpphH5pIAN9MKcRRMWolzxYD8KwDqVbG1etmFfKDrVeRMWyPGYAXzM3Sh-a_B-t2cg1VVprjlDBpY-rvw1; " +
                           $"OptanonConsent={_optanonConsent}; " +
                           $"g_state={{\"i_l\":0,\"i_ll\":1772220863300,\"i_b\":\"AaGllvcqellUM9iUM0DEmj5fL71NzvgCavzu6Ba1AXQ\",\"i_e\":{{\"enable_itp_optimization\":0}}}}; " +
                           $"__cf_bm=VeDk1ufO65lTDtazoSjP3JDvWJXfVxsyJ6BNr76XIQw-1772229332-1.0.1.1-3.51z4zAsADHTmVUx3zFAv5anKrYKutqLIX4Hl75KQZVn1hwaKJC9hRNrp9KWt52ru1jJq7SGBd3dVaCAUSVClmGvld4qMeBGCAqrlB7SCA; " +
