@@ -82,6 +82,7 @@ class Program
                 services.AddSingleton<UserRateLimiter>(_ => new UserRateLimiter(cooldown: TimeSpan.FromSeconds(3)));
 
                 // ── Domain services ───────────────────────────────────────────
+                services.AddSingleton<StationCacheService>();
                 services.AddSingleton<IRequestService, RequestMapService>();
                 services.AddSingleton<GasStationFinder>();
 
@@ -108,8 +109,8 @@ class Program
         logger.LogInformation("Output format: {Format}, MaxResults: {Max}",
             formatterConfig.Format, formatterConfig.MaxResults);
 
-        if (string.IsNullOrWhiteSpace(configuration["geoapify"]))
-            logger.LogWarning("geoapify environment variable is not set. Distance features will be disabled.");
+        if (string.IsNullOrWhiteSpace(configuration["GEOAPIFY_KEY"]))
+            logger.LogWarning("GEOAPIFY_KEY environment variable is not set. Distance features will be disabled.");
 
         if (!long.TryParse(configuration["OWNER_CHAT_ID"], out _))
             logger.LogWarning(
@@ -118,6 +119,10 @@ class Program
         // ── Resolve top-level singletons ──────────────────────────────────────
         var botService       = host.Services.GetRequiredService<BotService>();
         var gasStationFinder = host.Services.GetRequiredService<GasStationFinder>();
+        var stationCache     = host.Services.GetRequiredService<StationCacheService>();
+
+        // Ensure the stations cache table exists before the bot starts serving.
+        await stationCache.EnsureTableAsync();
 
         // ── Graceful shutdown on Ctrl+C ───────────────────────────────────────
         Console.CancelKeyPress += (_, e) =>

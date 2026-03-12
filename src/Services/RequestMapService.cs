@@ -15,6 +15,7 @@ public class RequestMapService : IRequestService
     private readonly IDistanceCalculator _distanceCalculator;
     private readonly StationFormatterConfig _config;
     private readonly GasBuddyHttpClient _gasBuddyClient;
+    private readonly StationCacheService _stationCache;
     private readonly Random _random = new Random();
     private bool _disposed = false;
 
@@ -23,13 +24,15 @@ public class RequestMapService : IRequestService
         IStationDetailsService stationDetailsService,
         IDistanceCalculator distanceCalculator,
         StationFormatterConfig config,
-        GasBuddyHttpClient gasBuddyClient)
+        GasBuddyHttpClient gasBuddyClient,
+        StationCacheService stationCache)
     {
         _geocoder = geocoder ?? throw new ArgumentNullException(nameof(geocoder));
         _stationDetailsService = stationDetailsService ?? throw new ArgumentNullException(nameof(stationDetailsService));
         _distanceCalculator = distanceCalculator ?? throw new ArgumentNullException(nameof(distanceCalculator));
         _config = config ?? throw new ArgumentNullException(nameof(config));
         _gasBuddyClient = gasBuddyClient ?? throw new ArgumentNullException(nameof(gasBuddyClient));
+        _stationCache = stationCache ?? throw new ArgumentNullException(nameof(stationCache));
     }
 
     public async Task<List<FuelStation>> GetDataAsync(string startAddress)
@@ -138,18 +141,22 @@ public class RequestMapService : IRequestService
         var result = new List<FuelStation>();
         foreach (var (station, _, price) in limitedCandidates)
         {
-            var details = await _stationDetailsService.GetStationDetailsAsync(station.lat, station.lng);
+            // Try cache first — fall back to live service on miss.
+            var details = await _stationCache.GetAsync(station.id);
+            if (details == null)
+            {
+                details = await _stationDetailsService.GetStationDetailsAsync(station.lat, station.lng);
+                await _stationCache.SetAsync(station.id, details);
+            }
 
             result.Add(new FuelStation(
                 details.Name,
                 details.Address,
                 station.lat,
                 station.lng,
-                price // Keep original price (not divided by 100)
+                price
             ));
         }
-
-        Console.WriteLine($"Found {result.Count} stations with prices");
 
         // Calculate distances for selected stations only
         foreach (var station in result)

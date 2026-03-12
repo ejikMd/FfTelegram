@@ -64,7 +64,7 @@ public class GasStationFinder
                     sb.Append(RenderStation(sorted[i], i, activeFormat));
 
             // Footer
-            sb.Append($"<i>🔄 {DateTime.Now:MMM d, HH:mm} · {stations.Count} station{(stations.Count == 1 ? "" : "s")}</i>");
+            sb.Append($"<i>🔄 {DateTime.Now:MMM d, HH:mm}</i>");
             if (_config.ShowFormatFooter)
                 sb.Append($" · <i>{activeFormat}</i>");
 
