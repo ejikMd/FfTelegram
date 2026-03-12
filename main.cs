@@ -1,12 +1,15 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Telegram.Bot;
 
 /// <summary>
-/// Entry point. Responsible only for reading config, wiring dependencies,
-/// and handing off to BotService and WebServer.
+/// Entry point. Builds the Generic Host, registers all services in the DI
+/// container, then starts the bot and web server.
 /// </summary>
 class Program
 {
@@ -19,69 +22,107 @@ class Program
         TaskScheduler.UnobservedTaskException += (_, e) =>
         {
             Console.Error.WriteLine($"[WARN] Unobserved task exception: {e.Exception}");
-            e.SetObserved(); // prevent process crash
+            e.SetObserved();
         };
 
-        // ── Logging ──────────────────────────────────────────────────────────
-        using var loggerFactory = LoggerFactory.Create(b =>
-            b.AddSimpleConsole(o =>
+        var host = Host.CreateDefaultBuilder(args)
+            .ConfigureAppConfiguration(config =>
             {
-                o.IncludeScopes   = true;
-                o.TimestampFormat = "HH:mm:ss ";
+                // Environment variables are the primary config source.
+                // Add appsettings.json as an optional supplement.
+                config.AddEnvironmentVariables();
+                config.AddJsonFile("appsettings.json", optional: true);
             })
-            .SetMinimumLevel(LogLevel.Information)
-            .AddFilter("Microsoft.AspNetCore", LogLevel.Warning)
-            .AddFilter("Microsoft.Hosting",    LogLevel.Warning)
-            .AddFilter("MessageRouter",        LogLevel.Warning));
+            .ConfigureLogging((ctx, logging) =>
+            {
+                logging.ClearProviders();
+                logging.AddSimpleConsole(o =>
+                {
+                    o.IncludeScopes   = true;
+                    o.TimestampFormat = "HH:mm:ss ";
+                });
+                logging.SetMinimumLevel(LogLevel.Information);
+                logging.AddFilter("Microsoft.AspNetCore", LogLevel.Warning);
+                logging.AddFilter("Microsoft.Hosting",    LogLevel.Warning);
+                logging.AddFilter("MessageRouter",        LogLevel.Warning);
+            })
+            .ConfigureServices((ctx, services) =>
+            {
+                var config = ctx.Configuration;
 
-        var logger = loggerFactory.CreateLogger<Program>();
+                // ── Validate required config eagerly ──────────────────────────
+                var botToken = config["BOT_TOKEN"];
+                if (string.IsNullOrWhiteSpace(botToken))
+                    throw new InvalidOperationException("BOT_TOKEN environment variable is not set.");
 
-        // ── Configuration ────────────────────────────────────────────────────
-        var botToken      = Environment.GetEnvironmentVariable("BOT_TOKEN");
-        var geoapifyKey   = Environment.GetEnvironmentVariable("geoapify") ?? string.Empty;
+                var geoapifyKey = config["GEOAPIFY_KEY"] ?? string.Empty;
 
-        if (string.IsNullOrWhiteSpace(botToken))
-        {
-            logger.LogCritical("BOT_TOKEN environment variable is not set. Exiting.");
-            return;
-        }
+                // ── Process-level CancellationTokenSource ─────────────────────
+                // Registered as a singleton so BotService and the shutdown handler
+                // share the same instance.
+                var processCts = new CancellationTokenSource();
+                services.AddSingleton(processCts);
 
-        if (string.IsNullOrWhiteSpace(geoapifyKey))
-        {
-            // Fail loudly — silent empty string leads to mysterious errors later.
+                // ── Telegram bot client ───────────────────────────────────────
+                services.AddSingleton<ITelegramBotClient>(_ =>
+                    new TelegramBotClient(botToken));
+
+                // ── Infrastructure / external services ────────────────────────
+                services.AddSingleton<IGeocoder, GeocoderCaService>();
+
+                // GeoapifyLocationService implements both IReverseGeocoder and
+                // IDistanceCalculator — register one instance, expose via both interfaces.
+                services.AddSingleton<GeoapifyLocationService>(_ => new GeoapifyLocationService(geoapifyKey));
+                services.AddSingleton<IReverseGeocoder>(sp => sp.GetRequiredService<GeoapifyLocationService>());
+                services.AddSingleton<IDistanceCalculator>(sp => sp.GetRequiredService<GeoapifyLocationService>());
+
+                services.AddSingleton<GasBuddyHttpClient>();
+                services.AddSingleton<IStationDetailsService, StationDetailsService>();
+
+                // ── App-layer config / stores ─────────────────────────────────
+                services.AddSingleton(_ => StationFormatterConfig.FromEnvironment());
+                services.AddSingleton<UserFormatStore>();
+                services.AddSingleton<UserRateLimiter>(_ => new UserRateLimiter(cooldown: TimeSpan.FromSeconds(3)));
+
+                // ── Domain services ───────────────────────────────────────────
+                services.AddSingleton<IRequestService, RequestMapService>();
+                services.AddSingleton<GasStationFinder>();
+
+                // ── Feedback ──────────────────────────────────────────────────
+                // Always registers — FeedbackService logs and swallows delivery
+                // errors gracefully when ownerChatId is 0 (missing/invalid env var).
+                long.TryParse(config["OWNER_CHAT_ID"], out var ownerChatId);
+                services.AddSingleton(sp => new FeedbackService(
+                    sp.GetRequiredService<ITelegramBotClient>(),
+                    ownerChatId,
+                    sp.GetRequiredService<ILogger<FeedbackService>>()));
+
+                // ── Routing & bot lifecycle ───────────────────────────────────
+                services.AddSingleton<MessageRouter>();
+                services.AddSingleton<BotService>();
+            })
+            .Build();
+
+        // ── Post-build startup logging ────────────────────────────────────────
+        var logger           = host.Services.GetRequiredService<ILogger<Program>>();
+        var configuration    = host.Services.GetRequiredService<IConfiguration>();
+        var formatterConfig  = host.Services.GetRequiredService<StationFormatterConfig>();
+
+        logger.LogInformation("Output format: {Format}, MaxResults: {Max}",
+            formatterConfig.Format, formatterConfig.MaxResults);
+
+        if (string.IsNullOrWhiteSpace(configuration["geoapify"]))
             logger.LogWarning("geoapify environment variable is not set. Distance features will be disabled.");
-        }
 
-        // ── Service wiring ───────────────────────────────────────────────────
-        var cts        = new CancellationTokenSource();
-        var botClient  = new TelegramBotClient(botToken);
+        if (!long.TryParse(configuration["OWNER_CHAT_ID"], out _))
+            logger.LogWarning(
+                "OWNER_CHAT_ID is not set or invalid. /feedback will not forward messages to the owner.");
 
-        IGeocoder              geocoder              = new GeocoderCaService();
-        IReverseGeocoder       reverseGeocoder    = new GeoapifyLocationService(geoapifyKey);
-        IDistanceCalculator    distanceCalculator    = new GeoapifyLocationService(geoapifyKey);
-        
-        IStationDetailsService stationDetailsService = new StationDetailsService(reverseGeocoder);
-        var formatterConfig  = StationFormatterConfig.FromEnvironment();
-        GasBuddyHttpClient gasBuddyClient = new GasBuddyHttpClient();
-        IRequestService        requestService        = new RequestMapService(geocoder, stationDetailsService, distanceCalculator, formatterConfig, gasBuddyClient);
-        var formatStore      = new UserFormatStore(formatterConfig);
-        var gasStationFinder = new GasStationFinder(requestService, formatterConfig, formatStore);
-        logger.LogInformation("Output format: {Format}, MaxResults: {Max}", formatterConfig.Format, formatterConfig.MaxResults);
-        var rateLimiter      = new UserRateLimiter(cooldown: TimeSpan.FromSeconds(3));
-        var router           = new MessageRouter(
-                                    gasStationFinder,
-                                    rateLimiter,
-                                    formatterConfig,
-                                    formatStore,
-                                    loggerFactory.CreateLogger<MessageRouter>());
+        // ── Resolve top-level singletons ──────────────────────────────────────
+        var botService       = host.Services.GetRequiredService<BotService>();
+        var gasStationFinder = host.Services.GetRequiredService<GasStationFinder>();
 
-        using var botService = new BotService(
-            botClient,
-            router,
-            loggerFactory.CreateLogger<BotService>(),
-            cts);
-
-        // ── Graceful shutdown on Ctrl+C ──────────────────────────────────────
+        // ── Graceful shutdown on Ctrl+C ───────────────────────────────────────
         Console.CancelKeyPress += (_, e) =>
         {
             e.Cancel = true;
@@ -89,7 +130,7 @@ class Program
             botService.RequestShutdown();
         };
 
-        // ── Start bot ────────────────────────────────────────────────────────
+        // ── Start bot ─────────────────────────────────────────────────────────
         try
         {
             await botService.StartAsync();
@@ -100,7 +141,7 @@ class Program
             logger.LogError(ex, "Bot failed to start. Web server will still run.");
         }
 
-        // ── Start web server (blocks until process exits) ────────────────────
+        // ── Start web server (blocks until process exits) ─────────────────────
         await WebServer.RunAsync(args, botService, gasStationFinder);
     }
 }

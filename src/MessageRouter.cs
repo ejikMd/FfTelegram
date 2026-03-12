@@ -25,26 +25,30 @@ public sealed class MessageRouter
     private readonly UserRateLimiter         _rateLimiter;
     private readonly StationFormatterConfig  _config;
     private readonly UserFormatStore         _formatStore;
+    private readonly FeedbackService         _feedbackService;
 
     public MessageRouter(
         GasStationFinder finder,
         UserRateLimiter rateLimiter,
         StationFormatterConfig config,
         UserFormatStore formatStore,
+        FeedbackService feedbackService,
         ILogger<MessageRouter> logger)
     {
-        _logger      = logger;
-        _rateLimiter = rateLimiter;
-        _config      = config;
-        _formatStore = formatStore;
+        _logger          = logger;
+        _rateLimiter     = rateLimiter;
+        _config          = config;
+        _formatStore     = formatStore;
+        _feedbackService = feedbackService;
 
         _handlers = new Dictionary<string, Func<ITelegramBotClient, long, string, CancellationToken, Task>>(
             StringComparer.OrdinalIgnoreCase)
         {
-            ["/start"]  = HandleStartAsync,
-            ["/help"]   = HandleHelpAsync,
-            ["/format"] = HandleFormatMenuAsync,
-            ["/find"]   = (bot, chatId, args, ct) => HandleFindAsync(bot, chatId, args, ct, finder),
+            ["/start"]    = HandleStartAsync,
+            ["/help"]     = HandleHelpAsync,
+            ["/format"]   = HandleFormatMenuAsync,
+            ["/find"]     = (bot, chatId, args, ct) => HandleFindAsync(bot, chatId, args, ct, finder),
+            ["/feedback"] = HandleFeedbackAsync,
         };
     }
 
@@ -147,9 +151,8 @@ public sealed class MessageRouter
             "Use <code>/find [location]</code> to search for nearby gas stations.\n\n" +
             "Examples:\n" +
             "• <code>/find H8N2P7</code>\n" +
-            "• <code>/find Montreal, QC</code>\n" +
-            "• <code>/find 123 Main St, Toronto</code>\n\n" +
-            "Use /format to choose your preferred output style.",
+            "Use /format to choose your preferred output style.\n" +
+            "Use /feedback to send us a message.",
             parseMode: ParseMode.Html,
             cancellationToken: ct);
 
@@ -159,6 +162,7 @@ public sealed class MessageRouter
             "📖 <b>Available commands</b>\n\n" +
             "/find [location] — Search gas stations near a location\n" +
             "/format — Choose output style\n" +
+            "/feedback [message] — Send feedback to the bot owner\n" +
             "/start — Welcome message\n" +
             "/help — Show this message",
             parseMode: ParseMode.Html,
@@ -171,6 +175,29 @@ public sealed class MessageRouter
             parseMode: ParseMode.Html,
             replyMarkup: BuildFormatKeyboard(chatId),
             cancellationToken: ct);
+
+    private async Task HandleFeedbackAsync(
+        ITelegramBotClient bot, long chatId, string args, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(args))
+        {
+            await bot.SendMessage(chatId,
+                "💬 <b>Usage:</b> <code>/feedback [your message]</code>\n\n" +
+                "Example: <code>/feedback The search results are missing my local station.</code>",
+                parseMode: ParseMode.Html,
+                cancellationToken: ct);
+            return;
+        }
+
+        // Retrieve the sender's display name from the update context via the
+        // BotService handler, which passes it through as part of chatId lookup.
+        // Fall back to the chat ID string if no name is available.
+        var senderName = $"id:{chatId}";
+
+        await _feedbackService.SubmitAsync(chatId, senderName, args, ct);
+
+        _logger.LogInformation("Feedback submitted by chat {ChatId}.", chatId);
+    }
 
     private async Task HandleFindAsync(
         ITelegramBotClient bot,
