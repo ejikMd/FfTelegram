@@ -6,15 +6,17 @@ using System.Threading.Tasks;
 
 public class GeoapifyLocationService : IDistanceCalculator, IReverseGeocoder
 {
+    private readonly ILogger<GeoapifyLocationService> _logger;
     private readonly string _apiKey;
     private bool _disposed = false;
 
-    public GeoapifyLocationService(string apiKey)
+    public GeoapifyLocationService(string apiKey, ILogger<GeoapifyLocationService> logger)
     {
         if (string.IsNullOrEmpty(apiKey))
             throw new ArgumentNullException(nameof(apiKey), "Geoapify API key is required");
 
         _apiKey = apiKey;
+        _logger = logger;
     }
 
     public async Task<decimal> CalculateDrivingDistanceAsync(double startLatitude, double startLongitude, double endLatitude, double endLongitude)
@@ -128,11 +130,17 @@ public class GeoapifyLocationService : IDistanceCalculator, IReverseGeocoder
                 stationName = await GetNameAsync(strationInfo?.Latitude, strationInfo?.Longitude);
             if (stationName == "Unknown")
                 stationName = await GetNameAsync(latitude, longitude);
-            if (stationName == "Unknown"){
+            if (stationName == "Unknown")
+            {
+                OverpassPlaceService placeService = new OverpassPlaceService();
                 stationName = await placeService.GetNearbyGasStationNameAsync(latitude, longitude);
-                
+            }
 
-            
+            if (stationName == "Unknown")
+            {
+                _logger.LogError("Failed to find name for " + latitude + ", " + longitude + ". StrationInfo:" + strationInfo?.Latitude + ", " + strationInfo?.Longitude);
+                Console.WriteLine("Failed to find name for " + latitude + ", " + longitude + ". StrationInfo:" + strationInfo?.Latitude + ", " + strationInfo?.Longitude);
+            }    
                 
             return new ReverseGeocodeInfo
             {

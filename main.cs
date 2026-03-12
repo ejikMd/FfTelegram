@@ -64,15 +64,14 @@ class Program
                 services.AddSingleton(processCts);
 
                 // ── Telegram bot client ───────────────────────────────────────
-                services.AddSingleton<ITelegramBotClient>(_ =>
-                    new TelegramBotClient(botToken));
+                services.AddSingleton<ITelegramBotClient>(_ => new TelegramBotClient(botToken));
 
                 // ── Infrastructure / external services ────────────────────────
                 services.AddSingleton<IGeocoder, GeocoderCaService>();
 
                 // GeoapifyLocationService implements both IReverseGeocoder and
                 // IDistanceCalculator — register one instance, expose via both interfaces.
-                services.AddSingleton<GeoapifyLocationService>(_ => new GeoapifyLocationService(geoapifyKey));
+                services.AddSingleton<GeoapifyLocationService>(sp => new GeoapifyLocationService(geoapifyKey, sp.GetRequiredService<ILogger<GeoapifyLocationService>>()));
                 services.AddSingleton<IReverseGeocoder>(sp => sp.GetRequiredService<GeoapifyLocationService>());
                 services.AddSingleton<IDistanceCalculator>(sp => sp.GetRequiredService<GeoapifyLocationService>());
 
