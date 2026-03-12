@@ -6,17 +6,17 @@ using System.Collections.Generic;
 
 public class GasStationFinder
 {
-    private readonly IRequestService        _requestService;
+    private readonly IRequestService _requestService;
     private readonly StationFormatterConfig _config;
-    private readonly UserFormatStore        _formatStore;
+    private readonly UserFormatStore _formatStore;
 
     private static readonly string[] Medals = { "🥇", "🥈", "🥉" };
 
     public GasStationFinder(IRequestService requestService, StationFormatterConfig config, UserFormatStore formatStore)
     {
         _requestService = requestService ?? throw new ArgumentNullException(nameof(requestService));
-        _config         = config         ?? throw new ArgumentNullException(nameof(config));
-        _formatStore    = formatStore    ?? throw new ArgumentNullException(nameof(formatStore));
+        _config = config ?? throw new ArgumentNullException(nameof(config));
+        _formatStore = formatStore ?? throw new ArgumentNullException(nameof(formatStore));
     }
 
     public async Task<string> FindAsync(string searchGas, long chatId = 0)
@@ -38,13 +38,14 @@ public class GasStationFinder
 
             // Sort: cheapest first, unknowns last, distance as tiebreaker.
             var sorted = stations
-                .OrderBy(s => s.Price <= 0 ? decimal.MaxValue : s.Price)
+                .OrderBy(s => s.ProximityRating)
+                .ThenBy(s => s.Price <= 0 ? decimal.MaxValue : s.Price)
                 .ThenBy(s => s.Distance)
                 .Take(_config.MaxResults > 0 ? _config.MaxResults : int.MaxValue)
                 .ToList();
 
             var cheapest = sorted.FirstOrDefault(s => s.Price > 0);
-            var sb       = new StringBuilder();
+            var sb = new StringBuilder();
 
             // Header
             sb.Append("⛽ <b>Gas Stations</b> · ");
@@ -83,18 +84,18 @@ public class GasStationFinder
     private static string RenderStation(FuelStation s, int index, OutputFormat format) => format switch
     {
         OutputFormat.Compact => RenderCompact(s, index),
-        OutputFormat.Card    => RenderCard(s, index),
+        OutputFormat.Card => RenderCard(s, index),
         OutputFormat.Minimal => RenderMinimal(s, index),
-        _                    => RenderCompact(s, index),
+        _ => RenderCompact(s, index),
     };
 
     /// Compact — one line, location as a linked icon using coordinates.
     /// 🥇 Costco · 153.9¢∕L · 1.2km · 📍
     private static string RenderCompact(FuelStation s, int index)
     {
-        var medal   = index < Medals.Length ? Medals[index] : $"{index + 1}.";
-        var price   = s.Price > 0    ? $"<b>{s.Price:F1}¢∕L</b>" : "<i>N/A</i>";
-        var dist    = s.Distance > 0 ? $"{s.Distance:F1}km"       : "?km";
+        var medal = index < Medals.Length ? Medals[index] : $"{index + 1}.";
+        var price = s.Price > 0 ? $"<b>{s.Price:F1}¢∕L</b>" : "<i>N/A</i>";
+        var dist = s.Distance > 0 ? $"{s.Distance:F1}km" : "?km";
         var mapLink = MapsLink(s.Latitude, s.Longitude, "📍");
         return $"{medal} {EscapeHtml(s.Name)} · {price} · {dist} · {mapLink}\n";
     }
@@ -105,9 +106,9 @@ public class GasStationFinder
     ///    📌 9430 Boulevard Taschereau...
     private static string RenderCard(FuelStation s, int index)
     {
-        var medal   = index < Medals.Length ? Medals[index] : $"{index + 1}.";
-        var price   = s.Price > 0    ? $"<b>{s.Price:F1}¢∕L</b>"  : "<i>N/A</i>";
-        var dist    = s.Distance > 0 ? $"  📏 {s.Distance:F1} km" : "";
+        var medal = index < Medals.Length ? Medals[index] : $"{index + 1}.";
+        var price = s.Price > 0 ? $"<b>{s.Price:F1}¢∕L</b>" : "<i>N/A</i>";
+        var dist = s.Distance > 0 ? $"  📏 {s.Distance:F1} km" : "";
         var mapLink = MapsLink(s.Latitude, s.Longitude, EscapeHtml(s.Address));
 
         return $"{medal} <b>{EscapeHtml(s.Name)}</b>\n" +
@@ -127,9 +128,9 @@ public class GasStationFinder
     // ── Table renderer (wraps all rows in <pre>) ─────────────────────────────
 
     // Column widths (characters). Keep total <= 40 for comfortable mobile display.
-    private const int ColName  = 15;
-    private const int ColPrice =  7;
-    private const int ColDist  =  6;
+    private const int ColName = 15;
+    private const int ColPrice = 7;
+    private const int ColDist = 6;
 
     /// Renders all stations as a fixed-width ASCII table inside &lt;pre&gt; tags.
     ///
@@ -153,11 +154,11 @@ public class GasStationFinder
 
         for (int i = 0; i < stations.Count; i++)
         {
-            var s     = stations[i];
-            var num   = $"{i + 1}".PadRight(2);
-            var name  = Truncate(s.Name, ColName).PadRight(ColName);
+            var s = stations[i];
+            var num = $"{i + 1}".PadRight(2);
+            var name = Truncate(s.Name, ColName).PadRight(ColName);
             var price = (s.Price > 0 ? $"{s.Price:F1}c" : "N/A").PadRight(ColPrice);
-            var dist  = (s.Distance > 0 ? $"{s.Distance:F1}km" : "?").PadRight(ColDist);
+            var dist = (s.Distance > 0 ? $"{s.Distance:F1}km" : "?").PadRight(ColDist);
 
             sb.AppendLine($"{num} {name} {price} {dist}");
 

@@ -51,7 +51,12 @@ public class RequestMapService : IRequestService
             Console.WriteLine($"Geocoded {startAddress} to coordinates: {latitude}, {longitude}");
 
             // Get gas stations using the coordinates
-            return await GetGasStationsByCoordinatesAsync(latitude, longitude);
+            var stations = await GetGasStationsByCoordinatesAsync(latitude, longitude);
+
+            // Assign proximity ratings based on effective cost (fuel price + round-trip detour cost)
+            AssignProximityRatings(stations);
+
+            return stations;
         }
         catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.TooManyRequests)
         {
@@ -104,11 +109,10 @@ public class RequestMapService : IRequestService
 
         string jsonPayload = JsonSerializer.Serialize(payload);
         string url = "https://www.gasbuddy.com/gaspricemap/map";
-        string referrer = "";//"https://www.gasbuddy.com/gaspricemap?fuel=1&z=14&lat=45.4580767734426&lng=-73.4545422846292";
 
         Console.WriteLine($"Requesting gas stations in bounding box: {minLat},{minLng} to {maxLat},{maxLng}");
 
-        string response = await _gasBuddyClient.PostJsonAsync(url, jsonPayload, referrer);
+        string response = await _gasBuddyClient.PostJsonAsync(url, jsonPayload);
 
         if (string.IsNullOrEmpty(response))
             return null;
@@ -165,6 +169,37 @@ public class RequestMapService : IRequestService
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Assigns a proximity rating (1 = best) to each station based on its effective cost:
+    /// the station's fuel price plus the cost of the round-trip detour to reach it.
+    /// Detour fuel cost = (roundTripKm / 100) * 10L * pricePerLitre.
+    /// Stations with a lower effective cost receive a better (lower) rating.
+    /// </summary>
+    private static void AssignProximityRatings(List<FuelStation> stations)
+    {
+        const decimal LitersPer100Km = 10.0m;
+
+        var ranked = stations
+            .Select(s =>
+            {
+                // Distance is the one-way driving distance in km; double it for the round trip.
+                decimal roundTripKm = (decimal)s.Distance * 2.0m;
+                decimal detourLitres = (roundTripKm / 100.0m) * LitersPer100Km;
+                decimal detourCost = detourLitres * s.Price; // cost in same currency as price/litre
+                decimal effectiveCost = s.Price + detourCost;
+                return (Station: s, EffectiveCost: effectiveCost);
+            })
+            .OrderBy(x => x.EffectiveCost)
+            .ToList();
+
+        int rating = 1;
+        foreach (var entry in ranked)
+        {
+            entry.Station.ProximityRating = rating++;
+            //Console.WriteLine($"Station: {entry.Station.Name}, Effective Cost: {entry.EffectiveCost}, Rating: {entry.Station.ProximityRating}, Address: {entry.Station.Address}");
+        }
     }
 
     public void Dispose()

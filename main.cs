@@ -113,8 +113,8 @@ class Program
         logger.LogInformation("Output format: {Format}, MaxResults: {Max}",
             formatterConfig.Format, formatterConfig.MaxResults);
 
-        if (string.IsNullOrWhiteSpace(configuration["geoapify"]))
-            logger.LogWarning("geoapify environment variable is not set. Distance features will be disabled.");
+        if (string.IsNullOrWhiteSpace(configuration["GEOAPIFY_KEY"]))
+            logger.LogWarning("GEOAPIFY_KEY environment variable is not set. Distance features will be disabled.");
 
         if (!long.TryParse(configuration["OWNER_CHAT_ID"], out _))
             logger.LogWarning(

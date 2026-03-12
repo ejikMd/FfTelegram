@@ -6,6 +6,7 @@ public class FuelStation
     public double Longitude { get; set; }
     public decimal Price { get; set; }
     public decimal Distance { get; set; }
+    public int ProximityRating {get; set;} = 0; 
 
     public FuelStation(string name, string address, double latitude, double longitude, decimal price)
     {
