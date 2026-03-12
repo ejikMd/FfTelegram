@@ -42,7 +42,10 @@ class Program
                     o.TimestampFormat = "HH:mm:ss ";
                     o.SingleLine      = true;
                 });
-                logging.SetMinimumLevel(LogLevel.Information);
+                logging.SetMinimumLevel(LogLevel.Information)
+                    .AddFilter("Microsoft.AspNetCore", LogLevel.Warning)
+                    .AddFilter("Microsoft.Hosting",    LogLevel.Warning)
+                    .AddFilter("MessageRouter",        LogLevel.Warning);
             })
             .ConfigureServices((ctx, services) =>
             {
