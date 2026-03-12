@@ -200,7 +200,7 @@ public sealed class BotService : IDisposable
             var chatId = message.Chat.Id;
             var user   = message.Chat.Username ?? message.Chat.FirstName ?? $"id:{chatId}";
             _logger.LogInformation("Message from {User}: {Text}", user, text);
-            await _router.RouteAsync(botClient, chatId, text, ct);
+            await _router.RouteAsync(botClient, message, ct);
             return;
         }
 

@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Telegram.Bot;
+using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 
 /// <summary>
@@ -34,20 +35,37 @@ public sealed class FeedbackService
     }
 
     /// <summary>
-    /// Forwards <paramref name="feedbackText"/> to the owner and sends a
-    /// confirmation reply to the user who submitted it.
+    /// Reacts to the user's message, forwards feedback to the owner,
+    /// and sends a confirmation reply to the user.
     /// </summary>
     /// <param name="senderChatId">Chat ID of the user submitting feedback.</param>
     /// <param name="senderName">Display name of the sender (username or first name).</param>
+    /// <param name="messageId">ID of the user's /feedback message — used for the reaction.</param>
     /// <param name="feedbackText">The raw feedback message text.</param>
     /// <param name="ct">Cancellation token.</param>
     public async Task SubmitAsync(
         long senderChatId,
         string senderName,
+        int messageId,
         string feedbackText,
         CancellationToken ct)
     {
         var sanitized = feedbackText.Trim();
+
+        // ── React to the user's message with 👍 ───────────────────────────────
+        try
+        {
+            await _botClient.SetMessageReaction(
+                senderChatId,
+                messageId,
+                new[] { new ReactionTypeEmoji { Emoji = "👍" } },
+                cancellationToken: ct);
+        }
+        catch (Exception ex)
+        {
+            // Reactions may fail (e.g. in group chats without permission) — non-fatal.
+            _logger.LogWarning(ex, "Failed to set reaction on message {MessageId}.", messageId);
+        }
 
         // ── Forward to owner ──────────────────────────────────────────────────
         var ownerMessage =

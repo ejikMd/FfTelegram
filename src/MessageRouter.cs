@@ -20,7 +20,7 @@ public sealed class MessageRouter
     // Callback data prefix used to identify format-selection button presses.
     private const string FormatCallbackPrefix = "fmt:";
 
-    private readonly Dictionary<string, Func<ITelegramBotClient, long, string, CancellationToken, Task>> _handlers;
+    private readonly Dictionary<string, Func<ITelegramBotClient, Message, string, CancellationToken, Task>> _handlers;
     private readonly ILogger<MessageRouter>  _logger;
     private readonly UserRateLimiter         _rateLimiter;
     private readonly StationFormatterConfig  _config;
@@ -41,13 +41,13 @@ public sealed class MessageRouter
         _formatStore     = formatStore;
         _feedbackService = feedbackService;
 
-        _handlers = new Dictionary<string, Func<ITelegramBotClient, long, string, CancellationToken, Task>>(
+        _handlers = new Dictionary<string, Func<ITelegramBotClient, Message, string, CancellationToken, Task>>(
             StringComparer.OrdinalIgnoreCase)
         {
-            ["/start"]    = HandleStartAsync,
-            ["/help"]     = HandleHelpAsync,
-            ["/format"]   = HandleFormatMenuAsync,
-            ["/find"]     = (bot, chatId, args, ct) => HandleFindAsync(bot, chatId, args, ct, finder),
+            ["/start"]    = (bot, msg, _, ct)   => HandleStartAsync(bot, msg.Chat.Id, _, ct),
+            ["/help"]     = (bot, msg, _, ct)   => HandleHelpAsync(bot, msg.Chat.Id, _, ct),
+            ["/format"]   = (bot, msg, _, ct)   => HandleFormatMenuAsync(bot, msg.Chat.Id, _, ct),
+            ["/find"]     = (bot, msg, args, ct) => HandleFindAsync(bot, msg.Chat.Id, args, ct, finder),
             ["/feedback"] = HandleFeedbackAsync,
         };
     }
@@ -56,11 +56,12 @@ public sealed class MessageRouter
 
     public async Task RouteAsync(
         ITelegramBotClient bot,
-        long chatId,
-        string text,
+        Message message,
         CancellationToken ct)
     {
-        var sw = Stopwatch.StartNew();
+        var sw     = Stopwatch.StartNew();
+        var chatId = message.Chat.Id;
+        var text   = message.Text ?? string.Empty;
 
         var spaceIndex = text.IndexOf(' ');
         var command    = spaceIndex >= 0 ? text[..spaceIndex] : text;
@@ -84,7 +85,7 @@ public sealed class MessageRouter
 
         try
         {
-            await handler(bot, chatId, args, ct);
+            await handler(bot, message, args, ct);
         }
         catch (Exception ex)
         {
@@ -177,8 +178,10 @@ public sealed class MessageRouter
             cancellationToken: ct);
 
     private async Task HandleFeedbackAsync(
-        ITelegramBotClient bot, long chatId, string args, CancellationToken ct)
+        ITelegramBotClient bot, Message message, string args, CancellationToken ct)
     {
+        var chatId = message.Chat.Id;
+
         if (string.IsNullOrWhiteSpace(args))
         {
             await bot.SendMessage(chatId,
@@ -189,12 +192,11 @@ public sealed class MessageRouter
             return;
         }
 
-        // Retrieve the sender's display name from the update context via the
-        // BotService handler, which passes it through as part of chatId lookup.
-        // Fall back to the chat ID string if no name is available.
-        var senderName = $"id:{chatId}";
+        var senderName = message.Chat.Username is { } u
+            ? $"@{u}"
+            : message.Chat.FirstName ?? $"id:{chatId}";
 
-        await _feedbackService.SubmitAsync(chatId, senderName, args, ct);
+        await _feedbackService.SubmitAsync(chatId, senderName, message.MessageId, args, ct);
 
         _logger.LogInformation("Feedback submitted by chat {ChatId}.", chatId);
     }
