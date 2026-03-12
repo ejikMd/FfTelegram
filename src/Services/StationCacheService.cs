@@ -42,12 +42,8 @@ public sealed class StationCacheService : IDisposable
             CREATE TABLE IF NOT EXISTS stations (
                 id      INT              PRIMARY KEY,
                 name    TEXT             NOT NULL,
-                address TEXT             NOT NULL,
-                lat     DOUBLE PRECISION NOT NULL DEFAULT 0,
-                lng     DOUBLE PRECISION NOT NULL DEFAULT 0
+                address TEXT             NOT NULL
             );
-            ALTER TABLE stations ADD COLUMN IF NOT EXISTS lat DOUBLE PRECISION NOT NULL DEFAULT 0;
-            ALTER TABLE stations ADD COLUMN IF NOT EXISTS lng DOUBLE PRECISION NOT NULL DEFAULT 0;
             """;
 
         await using var conn = await OpenAsync();
@@ -66,7 +62,7 @@ public sealed class StationCacheService : IDisposable
         {
             await using var conn = await OpenAsync();
             await using var cmd  = new NpgsqlCommand(
-                "SELECT name, address, lat, lng FROM stations WHERE id = @id", conn);
+                "SELECT name, address FROM stations WHERE id = @id", conn);
             cmd.Parameters.AddWithValue("id", stationId);
 
             await using var reader = await cmd.ExecuteReaderAsync();
@@ -77,9 +73,7 @@ public sealed class StationCacheService : IDisposable
                 {
                     Id        = stationId,
                     Name      = reader.GetString(0),
-                    Address   = reader.GetString(1),
-                    Latitude  = reader.GetDouble(2),
-                    Longitude = reader.GetDouble(3),
+                    Address   = reader.GetString(1)
                 };
             }
         }
@@ -99,20 +93,16 @@ public sealed class StationCacheService : IDisposable
         {
             await using var conn = await OpenAsync();
             await using var cmd  = new NpgsqlCommand("""
-                INSERT INTO stations (id, name, address, lat, lng)
-                VALUES (@id, @name, @address, @lat, @lng)
+                INSERT INTO stations (id, name, address)
+                VALUES (@id, @name, @address)
                 ON CONFLICT (id) DO UPDATE
                     SET name    = EXCLUDED.name,
-                        address = EXCLUDED.address,
-                        lat     = EXCLUDED.lat,
-                        lng     = EXCLUDED.lng;
+                        address = EXCLUDED.address;
                 """, conn);
 
             cmd.Parameters.AddWithValue("id",      stationId);
             cmd.Parameters.AddWithValue("name",    details.Name);
             cmd.Parameters.AddWithValue("address", details.Address);
-            cmd.Parameters.AddWithValue("lat",     details.Latitude);
-            cmd.Parameters.AddWithValue("lng",     details.Longitude);
 
             await cmd.ExecuteNonQueryAsync();
             _logger.LogDebug("Cache SET for station {Id} -> {Name}", stationId, details.Name);
@@ -125,11 +115,11 @@ public sealed class StationCacheService : IDisposable
 
     /// <summary>Returns all cached stations where name is 'Unknown'.</summary>
     public async Task<List<CachedStation>> GetUnknownStationsAsync()
-        => await QueryStationsAsync("SELECT id, name, address, lat, lng FROM stations WHERE name = 'Unknown'");
+        => await QueryStationsAsync("SELECT id, name, address FROM stations WHERE name = 'Unknown'");
 
     /// <summary>Returns all cached stations.</summary>
     public async Task<List<CachedStation>> GetAllStationsAsync()
-        => await QueryStationsAsync("SELECT id, name, address, lat, lng FROM stations");
+        => await QueryStationsAsync("SELECT id, name, address FROM stations");
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -148,9 +138,7 @@ public sealed class StationCacheService : IDisposable
                 {
                     Id      = reader.GetInt32(0),
                     Name    = reader.GetString(1),
-                    Address = reader.GetString(2),
-                    Lat     = reader.GetDouble(3),
-                    Lng     = reader.GetDouble(4),
+                    Address = reader.GetString(2)
                 });
             }
         }
@@ -204,6 +192,4 @@ public sealed class CachedStation
     public int    Id      { get; init; }
     public string Name    { get; init; } = string.Empty;
     public string Address { get; init; } = string.Empty;
-    public double Lat     { get; init; }
-    public double Lng     { get; init; }
 }

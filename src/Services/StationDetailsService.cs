@@ -75,7 +75,7 @@ public class StationDetailsService : IStationDetailsService
             if (station.TryGetProperty("Lat", out var latEl)) lat = latEl.GetDouble();
             if (station.TryGetProperty("Lng", out var lngEl)) lng = lngEl.GetDouble();
 
-            Console.WriteLine($"[StationDetails] id={stationId} name={name} address={fullAddress}");
+            //Console.WriteLine($"[StationDetails] id={stationId} name={name} address={fullAddress}");
 
             return new StationDetails
             {

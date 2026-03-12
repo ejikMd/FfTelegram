@@ -77,13 +77,6 @@ public sealed class StationSyncService
                         continue;
                     }
 
-                    // Preserve existing coordinates if GasBuddy didn't return any.
-                    if (details.Latitude == 0 && details.Longitude == 0)
-                    {
-                        details.Latitude  = station.Lat;
-                        details.Longitude = station.Lng;
-                    }
-
                     await _cache.SetAsync(station.Id, details);
                     result.Updated++;
 
