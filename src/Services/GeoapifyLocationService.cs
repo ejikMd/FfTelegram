@@ -123,13 +123,14 @@ public class GeoapifyLocationService : IDistanceCalculator, IReverseGeocoder
             var strationInfo = result?.Results.Count > 0 ? result.Results[0] : null;
 
             var stationName = "Unknown";
-            //GoogleMapsPlacesService placeService = new GoogleMapsPlacesService();
-            //stationName = await placeService.GetNearbyGasStationNameAsync(latitude, longitude);
+            OverpassPlaceService placeService = new OverpassPlaceService();
 
             if (stationName == "Unknown")
                 stationName = await GetNameAsync(strationInfo?.Latitude, strationInfo?.Longitude);
             if (stationName == "Unknown")
                 stationName = await GetNameAsync(latitude, longitude);
+            if (stationName == "Unknown")
+                stationName = await placeService.GetNearbyGasStationNameAsync(latitude, longitude);
 
             return new ReverseGeocodeInfo
             {
