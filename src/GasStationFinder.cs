@@ -24,8 +24,8 @@ public class GasStationFinder
         try
         {
             //List<FuelStation> stations = new List<FuelStation>(3);
-            //stations.Add(new FuelStation("Costco GasStation", "9430 Boulevard Taschereau, Brossard, QC J4X 2T7", 0, 0, 153.90m));
-            //stations.Add(new FuelStation("Shell", "4900 Grande Allee, Longueuil, QC J4V 3K9, Canada", 0, 0, 172.90m));        
+            //stations.Add(new FuelStation("Costco GasStation", "9430 Boulevard Taschereau, Brossard, QC J4X 2T7", 45.4485, -73.4892, 153.90m));
+            //stations.Add(new FuelStation("Shell", "4900 Grande Allee, Longueuil, QC J4V 3K9, Canada", 45.5351, -73.4867, 172.90m));        
             //stations[0].Distance = 1.2m;
             //stations[1].Distance = 11.2m;
 
@@ -88,18 +88,18 @@ public class GasStationFinder
         _                    => RenderCompact(s, index),
     };
 
-    /// Compact — one line, address as a linked icon.
+    /// Compact — one line, location as a linked icon using coordinates.
     /// 🥇 Costco · 153.9¢∕L · 1.2km · 📍
     private static string RenderCompact(FuelStation s, int index)
     {
         var medal   = index < Medals.Length ? Medals[index] : $"{index + 1}.";
         var price   = s.Price > 0    ? $"<b>{s.Price:F1}¢∕L</b>" : "<i>N/A</i>";
         var dist    = s.Distance > 0 ? $"{s.Distance:F1}km"       : "?km";
-        var mapLink = MapsLink(s.Address, "📍");
+        var mapLink = MapsLink(s.Latitude, s.Longitude, "📍");
         return $"{medal} {EscapeHtml(s.Name)} · {price} · {dist} · {mapLink}\n";
     }
 
-    /// Card — three tight lines, address as clickable text.
+    /// Card — three tight lines, address as clickable text using coordinates.
     /// 🥇 Costco GasStation
     ///    💵 153.9¢∕L  📏 1.2 km
     ///    📌 9430 Boulevard Taschereau...
@@ -108,7 +108,7 @@ public class GasStationFinder
         var medal   = index < Medals.Length ? Medals[index] : $"{index + 1}.";
         var price   = s.Price > 0    ? $"<b>{s.Price:F1}¢∕L</b>"  : "<i>N/A</i>";
         var dist    = s.Distance > 0 ? $"  📏 {s.Distance:F1} km" : "";
-        var mapLink = MapsLink(s.Address, EscapeHtml(s.Address));
+        var mapLink = MapsLink(s.Latitude, s.Longitude, EscapeHtml(s.Address));
 
         return $"{medal} <b>{EscapeHtml(s.Name)}</b>\n" +
                $"   💵 {price}{dist}\n" +
@@ -161,9 +161,10 @@ public class GasStationFinder
 
             sb.AppendLine($"{num} {name} {price} {dist}");
 
-            // Address on a second indented line — truncated to fit <pre> width.
+            // Address on a second indented line — truncated to fit <pre> width, linked using coordinates
             var addr = Truncate(s.Address, 2 + 1 + ColName + 1 + ColPrice + 1 + ColDist);
-            sb.AppendLine($"   {addr}");
+            var mapLink = MapsLink(s.Latitude, s.Longitude, addr);
+            sb.AppendLine($"   {mapLink}");
         }
 
         sb.AppendLine("</pre>");
@@ -178,9 +179,9 @@ public class GasStationFinder
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private static string MapsLink(string address, string label)
+    private static string MapsLink(double latitude, double longitude, string label)
     {
-        var url = $"https://www.google.com/maps/search/?api=1&query={Uri.EscapeDataString(address)}";
+        var url = $"https://www.google.com/maps/search/?api=1&query={latitude},{longitude}";
         return $"<a href=\"{url}\">{label}</a>";
     }
 
