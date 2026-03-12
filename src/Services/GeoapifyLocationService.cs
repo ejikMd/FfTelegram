@@ -186,7 +186,7 @@ public class GeoapifyLocationService : IDistanceCalculator, IReverseGeocoder
         public string? Units { get; set; }
 
         [JsonPropertyName("distance")]
-        public int Distance { get; set; }
+        public double Distance { get; set; }
 
         [JsonPropertyName("distance_units")]
         public string? DistanceUnits { get; set; }
