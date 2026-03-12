@@ -13,7 +13,7 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 /// </summary>
 public static class WebServer
 {
-    public static async Task RunAsync(string[] args, BotService botService, GasStationFinder gasStationFinder)
+    public static async Task RunAsync(string[] args, BotService botService, GasStationFinder gasStationFinder, StationSyncService stationSyncService)
     {
         var builder = WebApplication.CreateBuilder(args);
 
@@ -132,6 +132,20 @@ public static class WebServer
             });
         });
 
+        app.MapPost("/sync/unknown", async ctx =>
+        {
+            var result = await stationSyncService.SyncUnknownAsync();
+            ctx.Response.StatusCode = result.Skipped ? 409 : 200;
+            await ctx.Response.WriteAsJsonAsync(result);
+        });
+
+        app.MapPost("/sync/all", async ctx =>
+        {
+            var result = await stationSyncService.SyncAllAsync();
+            ctx.Response.StatusCode = result.Skipped ? 409 : 200;
+            await ctx.Response.WriteAsJsonAsync(result);
+        });
+
 
         // --- UI ---
 
@@ -188,6 +202,15 @@ public static class WebServer
             {(!isRunning || botService.IsShuttingDown ? "disabled" : "")}
             onclick=""fetch('/shutdown',{{method:'POST'}}).then(r=>r.text()).then(t=>{{alert(t);location.reload();}})"">
       Stop Bot
+    </button>
+  </div>
+  <h2 style='margin-top:1.5rem'>🔄 Station Cache Sync</h2>
+  <div class='controls'>
+    <button onclick=""fetch('/sync/unknown',{{method:'POST'}}).then(r=>r.json()).then(t=>{{alert(JSON.stringify(t,null,2));}})"">
+      Sync Unknown
+    </button>
+    <button onclick=""fetch('/sync/all',{{method:'POST'}}).then(r=>r.json()).then(t=>{{alert(JSON.stringify(t,null,2));}})"">
+      Sync All
     </button>
   </div>
 </body>

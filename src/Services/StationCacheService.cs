@@ -1,19 +1,19 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 
 /// <summary>
-/// Caches gas station name + address in the Replit PostgreSQL database
-/// (table: stations, columns: id, name, address).
-///
-/// The primary key is the GasBuddy station id from <c>GasStationMapItem.id</c>.
+/// Caches gas station details in the Replit PostgreSQL database.
 ///
 /// Schema (created automatically on startup via <see cref="EnsureTableAsync"/>):
 ///   CREATE TABLE IF NOT EXISTS stations (
-///       id      INT  PRIMARY KEY,
-///       name    TEXT NOT NULL,
-///       address TEXT NOT NULL
+///       id      INT              PRIMARY KEY,
+///       name    TEXT             NOT NULL,
+///       address TEXT             NOT NULL,
+///       lat     DOUBLE PRECISION NOT NULL DEFAULT 0,
+///       lng     DOUBLE PRECISION NOT NULL DEFAULT 0
 ///   );
 /// </summary>
 public sealed class StationCacheService : IDisposable
@@ -35,15 +35,19 @@ public sealed class StationCacheService : IDisposable
 
     // ── Public API ────────────────────────────────────────────────────────────
 
-    /// <summary>Ensures the <c>stations</c> table exists. Call once at startup.</summary>
+    /// <summary>Ensures the stations table exists and columns are up to date. Call once at startup.</summary>
     public async Task EnsureTableAsync()
     {
         const string ddl = """
             CREATE TABLE IF NOT EXISTS stations (
-                id      INT  PRIMARY KEY,
-                name    TEXT NOT NULL,
-                address TEXT NOT NULL
+                id      INT              PRIMARY KEY,
+                name    TEXT             NOT NULL,
+                address TEXT             NOT NULL,
+                lat     DOUBLE PRECISION NOT NULL DEFAULT 0,
+                lng     DOUBLE PRECISION NOT NULL DEFAULT 0
             );
+            ALTER TABLE stations ADD COLUMN IF NOT EXISTS lat DOUBLE PRECISION NOT NULL DEFAULT 0;
+            ALTER TABLE stations ADD COLUMN IF NOT EXISTS lng DOUBLE PRECISION NOT NULL DEFAULT 0;
             """;
 
         await using var conn = await OpenAsync();
@@ -62,16 +66,21 @@ public sealed class StationCacheService : IDisposable
         {
             await using var conn = await OpenAsync();
             await using var cmd  = new NpgsqlCommand(
-                "SELECT name, address FROM stations WHERE id = @id", conn);
+                "SELECT name, address, lat, lng FROM stations WHERE id = @id", conn);
             cmd.Parameters.AddWithValue("id", stationId);
 
             await using var reader = await cmd.ExecuteReaderAsync();
             if (await reader.ReadAsync())
             {
-                var name    = reader.GetString(0);
-                var address = reader.GetString(1);
-                _logger.LogDebug("Cache HIT for station {Id} → {Name}", stationId, name);
-                return new StationDetails { Name = name, Address = address };
+                _logger.LogDebug("Cache HIT for station {Id} -> {Name}", stationId, reader.GetString(0));
+                return new StationDetails
+                {
+                    Id        = stationId,
+                    Name      = reader.GetString(0),
+                    Address   = reader.GetString(1),
+                    Latitude  = reader.GetDouble(2),
+                    Longitude = reader.GetDouble(3),
+                };
             }
         }
         catch (Exception ex)
@@ -90,19 +99,23 @@ public sealed class StationCacheService : IDisposable
         {
             await using var conn = await OpenAsync();
             await using var cmd  = new NpgsqlCommand("""
-                INSERT INTO stations (id, name, address)
-                VALUES (@id, @name, @address)
+                INSERT INTO stations (id, name, address, lat, lng)
+                VALUES (@id, @name, @address, @lat, @lng)
                 ON CONFLICT (id) DO UPDATE
                     SET name    = EXCLUDED.name,
-                        address = EXCLUDED.address;
+                        address = EXCLUDED.address,
+                        lat     = EXCLUDED.lat,
+                        lng     = EXCLUDED.lng;
                 """, conn);
 
             cmd.Parameters.AddWithValue("id",      stationId);
             cmd.Parameters.AddWithValue("name",    details.Name);
             cmd.Parameters.AddWithValue("address", details.Address);
+            cmd.Parameters.AddWithValue("lat",     details.Latitude);
+            cmd.Parameters.AddWithValue("lng",     details.Longitude);
 
             await cmd.ExecuteNonQueryAsync();
-            _logger.LogDebug("Cache SET for station {Id} → {Name}", stationId, details.Name);
+            _logger.LogDebug("Cache SET for station {Id} -> {Name}", stationId, details.Name);
         }
         catch (Exception ex)
         {
@@ -110,7 +123,43 @@ public sealed class StationCacheService : IDisposable
         }
     }
 
+    /// <summary>Returns all cached stations where name is 'Unknown'.</summary>
+    public async Task<List<CachedStation>> GetUnknownStationsAsync()
+        => await QueryStationsAsync("SELECT id, name, address, lat, lng FROM stations WHERE name = 'Unknown'");
+
+    /// <summary>Returns all cached stations.</summary>
+    public async Task<List<CachedStation>> GetAllStationsAsync()
+        => await QueryStationsAsync("SELECT id, name, address, lat, lng FROM stations");
+
     // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private async Task<List<CachedStation>> QueryStationsAsync(string sql)
+    {
+        var result = new List<CachedStation>();
+        try
+        {
+            await using var conn   = await OpenAsync();
+            await using var cmd    = new NpgsqlCommand(sql, conn);
+            await using var reader = await cmd.ExecuteReaderAsync();
+
+            while (await reader.ReadAsync())
+            {
+                result.Add(new CachedStation
+                {
+                    Id      = reader.GetInt32(0),
+                    Name    = reader.GetString(1),
+                    Address = reader.GetString(2),
+                    Lat     = reader.GetDouble(3),
+                    Lng     = reader.GetDouble(4),
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to query stations.");
+        }
+        return result;
+    }
 
     private async Task<NpgsqlConnection> OpenAsync()
     {
@@ -119,19 +168,12 @@ public sealed class StationCacheService : IDisposable
         return conn;
     }
 
-    /// <summary>
-    /// Converts a postgres:// URI (as provided by Replit) to an Npgsql
-    /// key=value connection string.
-    /// e.g. postgres://user:pass@host/dbname?sslmode=require
-    ///   →  Host=host;Database=dbname;Username=user;Password=pass;SSL Mode=Require
-    /// </summary>
     private static string BuildConnectionString(string url)
     {
-        // Accept both postgres:// and postgresql:// schemes.
         url = url.Replace("postgresql://", "postgres://");
 
         if (!url.StartsWith("postgres://"))
-            return url; // Already a key=value string — use as-is.
+            return url;
 
         var uri      = new Uri(url);
         var userInfo = uri.UserInfo.Split(':', 2);
@@ -141,7 +183,6 @@ public sealed class StationCacheService : IDisposable
         var port     = uri.Port > 0 ? uri.Port : 5432;
         var database = uri.AbsolutePath.TrimStart('/');
 
-        // Parse optional query parameters (e.g. sslmode=require).
         var sslMode = "Prefer";
         var query   = uri.Query.TrimStart('?');
         foreach (var part in query.Split('&', StringSplitOptions.RemoveEmptyEntries))
@@ -154,5 +195,15 @@ public sealed class StationCacheService : IDisposable
         return $"Host={host};Port={port};Database={database};Username={user};Password={password};SSL Mode={sslMode};Trust Server Certificate=true";
     }
 
-    public void Dispose() { /* Npgsql connections are disposed per-call */ }
+    public void Dispose() { }
+}
+
+/// <summary>Lightweight row returned by cache queries.</summary>
+public sealed class CachedStation
+{
+    public int    Id      { get; init; }
+    public string Name    { get; init; } = string.Empty;
+    public string Address { get; init; } = string.Empty;
+    public double Lat     { get; init; }
+    public double Lng     { get; init; }
 }

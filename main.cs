@@ -83,6 +83,7 @@ class Program
 
                 // ── Domain services ───────────────────────────────────────────
                 services.AddSingleton<StationCacheService>();
+                services.AddSingleton<StationSyncService>();
                 services.AddSingleton<IRequestService, RequestMapService>();
                 services.AddSingleton<GasStationFinder>();
 
@@ -109,17 +110,18 @@ class Program
         logger.LogInformation("Output format: {Format}, MaxResults: {Max}",
             formatterConfig.Format, formatterConfig.MaxResults);
 
-        if (string.IsNullOrWhiteSpace(configuration["GEOAPIFY_KEY"]))
-            logger.LogWarning("GEOAPIFY_KEY environment variable is not set. Distance features will be disabled.");
+        if (string.IsNullOrWhiteSpace(configuration["geoapify"]))
+            logger.LogWarning("geoapify environment variable is not set. Distance features will be disabled.");
 
         if (!long.TryParse(configuration["OWNER_CHAT_ID"], out _))
             logger.LogWarning(
                 "OWNER_CHAT_ID is not set or invalid. /feedback will not forward messages to the owner.");
 
         // ── Resolve top-level singletons ──────────────────────────────────────
-        var botService       = host.Services.GetRequiredService<BotService>();
-        var gasStationFinder = host.Services.GetRequiredService<GasStationFinder>();
-        var stationCache     = host.Services.GetRequiredService<StationCacheService>();
+        var botService        = host.Services.GetRequiredService<BotService>();
+        var gasStationFinder  = host.Services.GetRequiredService<GasStationFinder>();
+        var stationCache      = host.Services.GetRequiredService<StationCacheService>();
+        var stationSyncService = host.Services.GetRequiredService<StationSyncService>();
 
         // Ensure the stations cache table exists before the bot starts serving.
         await stationCache.EnsureTableAsync();
@@ -144,6 +146,6 @@ class Program
         }
 
         // ── Start web server (blocks until process exits) ─────────────────────
-        await WebServer.RunAsync(args, botService, gasStationFinder);
+        await WebServer.RunAsync(args, botService, gasStationFinder, stationSyncService);
     }
 }

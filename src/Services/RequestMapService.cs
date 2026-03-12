@@ -104,7 +104,7 @@ public class RequestMapService : IRequestService
 
         string jsonPayload = JsonSerializer.Serialize(payload);
         string url = "https://www.gasbuddy.com/gaspricemap/map";
-        string referrer = "https://www.gasbuddy.com/gaspricemap?fuel=1&z=14&lat=45.4580767734426&lng=-73.4545422846292";
+        string referrer = "";//"https://www.gasbuddy.com/gaspricemap?fuel=1&z=14&lat=45.4580767734426&lng=-73.4545422846292";
 
         Console.WriteLine($"Requesting gas stations in bounding box: {minLat},{minLng} to {maxLat},{maxLng}");
 

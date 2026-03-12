@@ -12,59 +12,95 @@ public interface IStationDetailsService : IDisposable
 
 public class StationDetails
 {
-    public int Id { get; set; }
-    public string Name { get; set; } = string.Empty;
-    public string Address { get; set; } = string.Empty;
-    public string City { get; set; } = string.Empty;
-    public string ZipCode { get; set; } = string.Empty;
-    public string State { get; set; } = string.Empty;
-    public string Phone { get; set; } = string.Empty;
-    public double Latitude { get; set; }
+    public int    Id        { get; set; }
+    public string Name      { get; set; } = string.Empty;
+    public string Address   { get; set; } = string.Empty;
+    public string City      { get; set; } = string.Empty;
+    public string ZipCode   { get; set; } = string.Empty;
+    public string State     { get; set; } = string.Empty;
+    public string Phone     { get; set; } = string.Empty;
+    public double Latitude  { get; set; }
     public double Longitude { get; set; }
-    public string Brand { get; set; } = string.Empty;
+    public string Brand     { get; set; } = string.Empty;
 }
 
 public class StationDetailsService : IStationDetailsService
 {
-    private readonly IReverseGeocoder _reverseGeocoder;
+    private readonly IReverseGeocoder  _reverseGeocoder;
+    private readonly GasBuddyHttpClient _gasBuddyClient;
     private bool _disposed = false;
 
-    public StationDetailsService(IReverseGeocoder reverseGeocoder)
+    public StationDetailsService(IReverseGeocoder reverseGeocoder, GasBuddyHttpClient gasBuddyClient)
     {
-        _reverseGeocoder = reverseGeocoder ?? throw new ArgumentNullException(nameof(reverseGeocoder));
+        _reverseGeocoder = reverseGeocoder  ?? throw new ArgumentNullException(nameof(reverseGeocoder));
+        _gasBuddyClient  = gasBuddyClient   ?? throw new ArgumentNullException(nameof(gasBuddyClient));
     }
 
+    /// <summary>
+    /// Fetches station name and address from GasBuddy using the station's numeric id.
+    /// Falls back to a placeholder if the request fails.
+    /// </summary>
     public async Task<StationDetails> GetStationDetailsAsync(int stationId)
     {
         try
         {
-            // TODO: Implement actual API call to get station details
-            // This might be a different endpoint or GraphQL query
+            var payload  = $"{{\"id\":{stationId},\"fuelTypeId\":\"1\"}}";
+            var response = await _gasBuddyClient.PostJsonAsync(
+                "https://www.gasbuddy.com/gaspricemap/station",
+                payload,
+                referrer: "https://www.gasbuddy.com/gaspricemap");
 
-            // For now, return mock data
-            await Task.Delay(100); // Simulate API call
+            if (string.IsNullOrWhiteSpace(response))
+                return Fallback(stationId);
+
+            using var doc = JsonDocument.Parse(response);
+
+            // Response shape: { "station": { "Id", "Name", "Address", "City", ... }, "prices": [...] }
+            if (!doc.RootElement.TryGetProperty("station", out var station))
+                return Fallback(stationId);
+
+            var name    = GetString(station, "Name");
+            var address = GetString(station, "Address");
+            var city    = GetString(station, "City");
+            var state   = GetString(station, "State");
+            var zip     = GetString(station, "ZipCode");
+            var phone   = GetString(station, "Phone");
+            var brand   = name; // On GasBuddy the station Name is the brand (e.g. "Couche-Tard")
+
+            var fullAddress = string.Join(", ",
+                new[] { address, city, state, zip }
+                    .Where(s => !string.IsNullOrWhiteSpace(s)));
+
+            double lat = 0, lng = 0;
+            if (station.TryGetProperty("Lat", out var latEl)) lat = latEl.GetDouble();
+            if (station.TryGetProperty("Lng", out var lngEl)) lng = lngEl.GetDouble();
+
+            Console.WriteLine($"[StationDetails] id={stationId} name={name} address={fullAddress}");
 
             return new StationDetails
             {
-                Id = stationId,
-                Name = $"Gas Station {stationId}",
-                Address = "123 Main Street",
-                Brand = "Unknown"
+                Id        = stationId,
+                Name      = string.IsNullOrWhiteSpace(name)        ? "Unknown" : name,
+                Address   = string.IsNullOrWhiteSpace(fullAddress) ? "Unknown" : fullAddress,
+                City      = city,
+                State     = state,
+                ZipCode   = zip,
+                Phone     = phone,
+                Latitude  = lat,
+                Longitude = lng,
+                Brand     = brand,
             };
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error getting station details: {ex.Message}");
-            return new StationDetails
-            {
-                Id = stationId,
-                Name = $"Station {stationId}",
-                Address = "Address unavailable",
-                Brand = "Unknown"
-            };
+            Console.WriteLine($"[StationDetails] Error fetching station {stationId}: {ex.Message}");
+            return Fallback(stationId);
         }
     }
 
+    /// <summary>
+    /// Fetches station name and address by reverse-geocoding the given coordinates.
+    /// </summary>
     public async Task<StationDetails> GetStationDetailsAsync(double latitude, double longitude)
     {
         try
@@ -73,28 +109,43 @@ public class StationDetailsService : IStationDetailsService
 
             return new StationDetails
             {
-                Id = 0,
-                Name = geocodeInfo.Name,
-                Address = geocodeInfo.Address,
-                Latitude = latitude,
+                Id        = 0,
+                Name      = geocodeInfo.Name,
+                Address   = geocodeInfo.Address,
+                Latitude  = latitude,
                 Longitude = longitude,
-                Brand = "Unknown"
+                Brand     = "Unknown",
             };
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error getting station details from coordinates: {ex.Message}");
+            Console.WriteLine($"[StationDetails] Error reverse-geocoding ({latitude},{longitude}): {ex.Message}");
             return new StationDetails
             {
-                Id = 0,
-                Name = "Unknown",
-                Address = $"{latitude}, {longitude}",
-                Latitude = latitude,
+                Id        = 0,
+                Name      = "Unknown",
+                Address   = $"{latitude}, {longitude}",
+                Latitude  = latitude,
                 Longitude = longitude,
-                Brand = "Unknown"
+                Brand     = "Unknown",
             };
         }
     }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private static StationDetails Fallback(int stationId) => new()
+    {
+        Id      = stationId,
+        Name    = "Unknown",
+        Address = "Unknown",
+        Brand   = "Unknown",
+    };
+
+    private static string GetString(JsonElement el, string key) =>
+        el.TryGetProperty(key, out var prop) && prop.ValueKind == JsonValueKind.String
+            ? prop.GetString() ?? string.Empty
+            : string.Empty;
 
     public void Dispose()
     {
