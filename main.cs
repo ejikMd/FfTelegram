@@ -40,11 +40,9 @@ class Program
                 {
                     o.IncludeScopes   = true;
                     o.TimestampFormat = "HH:mm:ss ";
+                    o.SingleLine      = true;
                 });
                 logging.SetMinimumLevel(LogLevel.Information);
-                logging.AddFilter("Microsoft.AspNetCore", LogLevel.Warning);
-                logging.AddFilter("Microsoft.Hosting",    LogLevel.Warning);
-                logging.AddFilter("MessageRouter",        LogLevel.Warning);
             })
             .ConfigureServices((ctx, services) =>
             {

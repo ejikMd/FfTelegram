@@ -138,8 +138,8 @@ public class GeoapifyLocationService : IDistanceCalculator, IReverseGeocoder
 
             if (stationName == "Unknown")
             {
-                _logger.LogError("Failed to find name for " + latitude + ", " + longitude + ". StrationInfo:" + strationInfo?.Latitude + ", " + strationInfo?.Longitude);
-                Console.WriteLine("Failed to find name for " + latitude + ", " + longitude + ". StrationInfo:" + strationInfo?.Latitude + ", " + strationInfo?.Longitude);
+                _logger.LogError("Failed to find name for " + latitude + ", " + longitude 
+                    + ". StrationInfo:" + strationInfo?.Latitude + ", " + strationInfo?.Longitude + ", " + strationInfo?.Address);
             }    
                 
             return new ReverseGeocodeInfo
