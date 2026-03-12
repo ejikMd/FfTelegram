@@ -21,6 +21,7 @@ public class GeoapifyLocationService : IDistanceCalculator, IReverseGeocoder
 
     public async Task<decimal> CalculateDrivingDistanceAsync(double startLatitude, double startLongitude, double endLatitude, double endLongitude)
     {
+        string content = "";
         try
         {
             string url = $"https://api.geoapify.com/v1/routing?" +
@@ -36,7 +37,7 @@ public class GeoapifyLocationService : IDistanceCalculator, IReverseGeocoder
                 return 0m;
             }
 
-            string content = await response.Content.ReadAsStringAsync();
+            content = await response.Content.ReadAsStringAsync();
             var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
             var result = JsonSerializer.Deserialize<GeoapifyRoutingResponse>(content, options);
 
@@ -52,7 +53,8 @@ public class GeoapifyLocationService : IDistanceCalculator, IReverseGeocoder
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error calculating distance: {ex.Message}");
+            _logger.LogError($"Error calculating distance: {ex.Message}");
+            _logger.LogError(content);
             return 0m;
         }
     }
@@ -66,7 +68,6 @@ public class GeoapifyLocationService : IDistanceCalculator, IReverseGeocoder
         $"&bias=proximity:{longitude},{latitude}" +
         $"&limit=2" +
         $"&apiKey={_apiKey}";
-        //Console.WriteLine(url);
         
         try
         {          
@@ -78,14 +79,11 @@ public class GeoapifyLocationService : IDistanceCalculator, IReverseGeocoder
             }
 
             content = await response.Content.ReadAsStringAsync();
-            //Console.WriteLine(content);
+
             var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
             var result = JsonSerializer.Deserialize<GeoapifyRoutingResponse>(content, options);
 
-            //if (result?.Features?.Count > 0 && result.Features[0].Properties != null)
-                return result?.Features[0].Properties.Name ?? "Unknown";
-
-            //return "Unknown";
+            return result?.Features[0].Properties.Name ?? "Unknown";
         }
         catch (Exception ex)
         {
@@ -122,12 +120,12 @@ public class GeoapifyLocationService : IDistanceCalculator, IReverseGeocoder
             var result = JsonSerializer.Deserialize<ReverseGeocodeResult>(content, options);
 
             //Console.WriteLine(content);
-            var strationInfo = result?.Results.Count > 0 ? result.Results[0] : null;
+            var stationInfo = result?.Results.Count > 0 ? result.Results[0] : null;
 
             var stationName = "Unknown";
 
             if (stationName == "Unknown")
-                stationName = await GetNameAsync(strationInfo?.Latitude, strationInfo?.Longitude);
+                stationName = await GetNameAsync(stationInfo?.Latitude, stationInfo?.Longitude);
             if (stationName == "Unknown")
                 stationName = await GetNameAsync(latitude, longitude);
             if (stationName == "Unknown")
@@ -138,14 +136,14 @@ public class GeoapifyLocationService : IDistanceCalculator, IReverseGeocoder
 
             if (stationName == "Unknown")
             {
-                _logger.LogError("Failed to find name for " + latitude + ", " + longitude 
-                    + ". StrationInfo:" + strationInfo?.Latitude + ", " + strationInfo?.Longitude + ", " + strationInfo?.Address);
+                _logger.LogError("Failed to find name for " + latitude + "," + longitude 
+                    + ". StationInfo:" + stationInfo?.Latitude + "," + stationInfo?.Longitude + ", " + stationInfo?.Address);
             }    
                 
             return new ReverseGeocodeInfo
             {
                 Name = stationName,
-                Address = strationInfo?.Address ?? $"{latitude}, {longitude}"
+                Address = stationInfo?.Address ?? $"{latitude}, {longitude}"
             };
         }
         catch (Exception ex)
@@ -241,6 +239,4 @@ public class GeoapifyLocationService : IDistanceCalculator, IReverseGeocoder
             }
         }
     }
-
-
 }
