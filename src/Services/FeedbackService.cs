@@ -94,11 +94,11 @@ public sealed class FeedbackService
         }
 
         // ── Confirm receipt to the user ───────────────────────────────────────
-        await _botClient.SendMessage(
-            senderChatId,
-            "✅ <b>Thank you for your feedback!</b> It has been sent to the bot owner.",
-            parseMode: ParseMode.Html,
-            cancellationToken: ct);
+        //await _botClient.SendMessage(
+        //    senderChatId,
+        //    "✅ <b>Thank you for your feedback!</b> It has been sent to the bot owner.",
+        //    parseMode: ParseMode.Html,
+        //    cancellationToken: ct);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

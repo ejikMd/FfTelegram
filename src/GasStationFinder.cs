@@ -51,7 +51,7 @@ public class GasStationFinder
             sb.AppendLine($"<i>{EscapeHtml(searchGas)}</i>");
 
             if (_config.ShowBestPriceSummary && cheapest != null)
-                sb.AppendLine($"💰 Best: <b>{cheapest.Price:F1}¢/L</b> · {EscapeHtml(cheapest.Name)}");
+                sb.AppendLine($"💰 Best: <b>{cheapest.Price:F1}¢∕L</b> · {EscapeHtml(cheapest.Name)}");
 
             sb.AppendLine();
 
@@ -89,11 +89,11 @@ public class GasStationFinder
     };
 
     /// Compact — one line, address as a linked icon.
-    /// 🥇 Costco · 153.9¢/L · 1.2km · 📍
+    /// 🥇 Costco · 153.9¢∕L · 1.2km · 📍
     private static string RenderCompact(FuelStation s, int index)
     {
         var medal   = index < Medals.Length ? Medals[index] : $"{index + 1}.";
-        var price   = s.Price > 0    ? $"<b>{s.Price:F1}¢/L</b>" : "<i>N/A</i>";
+        var price   = s.Price > 0    ? $"<b>{s.Price:F1}¢∕L</b>" : "<i>N/A</i>";
         var dist    = s.Distance > 0 ? $"{s.Distance:F1}km"       : "?km";
         var mapLink = MapsLink(s.Address, "📍");
         return $"{medal} {EscapeHtml(s.Name)} · {price} · {dist} · {mapLink}\n";
@@ -101,12 +101,12 @@ public class GasStationFinder
 
     /// Card — three tight lines, address as clickable text.
     /// 🥇 Costco GasStation
-    ///    💵 153.9¢/L  📏 1.2 km
+    ///    💵 153.9¢∕L  📏 1.2 km
     ///    📌 9430 Boulevard Taschereau...
     private static string RenderCard(FuelStation s, int index)
     {
         var medal   = index < Medals.Length ? Medals[index] : $"{index + 1}.";
-        var price   = s.Price > 0    ? $"<b>{s.Price:F1}¢/L</b>"  : "<i>N/A</i>";
+        var price   = s.Price > 0    ? $"<b>{s.Price:F1}¢∕L</b>"  : "<i>N/A</i>";
         var dist    = s.Distance > 0 ? $"  📏 {s.Distance:F1} km" : "";
         var mapLink = MapsLink(s.Address, EscapeHtml(s.Address));
 
@@ -116,11 +116,11 @@ public class GasStationFinder
     }
 
     /// Minimal — name and price only.
-    /// 🥇 Costco — 153.9¢/L
+    /// 🥇 Costco — 153.9¢∕L
     private static string RenderMinimal(FuelStation s, int index)
     {
         var medal = index < Medals.Length ? Medals[index] : $"{index + 1}.";
-        var price = s.Price > 0 ? $"<b>{s.Price:F1}¢/L</b>" : "<i>N/A</i>";
+        var price = s.Price > 0 ? $"<b>{s.Price:F1}¢∕L</b>" : "<i>N/A</i>";
         return $"{medal} {EscapeHtml(s.Name)} — {price}\n";
     }
 
