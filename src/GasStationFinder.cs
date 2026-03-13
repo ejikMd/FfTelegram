@@ -38,8 +38,8 @@ public class GasStationFinder
 
             // Sort: cheapest first, unknowns last, distance as tiebreaker.
             var sorted = stations
-                .OrderBy(s => s.ProximityRating)
-                .ThenBy(s => s.Price <= 0 ? decimal.MaxValue : s.Price)
+                //.OrderBy(s => s.ProximityRating)
+                .OrderBy(s => s.Price <= 0 ? decimal.MaxValue : s.Price)
                 .ThenBy(s => s.Distance)
                 .Take(_config.MaxResults > 0 ? _config.MaxResults : int.MaxValue)
                 .ToList();
