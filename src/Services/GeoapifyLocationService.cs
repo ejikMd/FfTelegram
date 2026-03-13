@@ -10,6 +10,8 @@ public class GeoapifyLocationService : IDistanceCalculator, IReverseGeocoder
     private readonly string _apiKey;
     private bool _disposed = false;
 
+    private readonly Lazy<OverpassPlaceService> _overpassService =  new(() => new OverpassPlaceService());
+
     public GeoapifyLocationService(string apiKey, ILogger<GeoapifyLocationService> logger)
     {
         if (string.IsNullOrEmpty(apiKey))
@@ -130,8 +132,7 @@ public class GeoapifyLocationService : IDistanceCalculator, IReverseGeocoder
                 stationName = await GetNameAsync(latitude, longitude);
             if (stationName == "Unknown")
             {
-                OverpassPlaceService placeService = new OverpassPlaceService();
-                stationName = await placeService.GetNearbyGasStationNameAsync(latitude, longitude);
+                stationName = await _overpassService.Value.GetNearbyGasStationNameAsync(latitude, longitude);
             }
 
             if (stationName == "Unknown")

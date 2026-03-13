@@ -5,7 +5,7 @@ public static class HttpClientProvider
     private static readonly Lazy<HttpClient> _instance = new Lazy<HttpClient>(() =>
     {
         var client = new HttpClient();
-        client.Timeout = TimeSpan.FromSeconds(30);
+        client.Timeout = TimeSpan.FromSeconds(60);
         return client;
     });
 
