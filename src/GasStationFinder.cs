@@ -13,7 +13,6 @@ public class GasStationFinder
 
     private static readonly string[] Medals = { "🥇", "🥈", "🥉" };
 
-    // Pre-compiled HTML escape mappings for better performance
     private static readonly Dictionary<char, string> HtmlEscapeMap = new Dictionary<char, string>
     {
         { '&', "&amp;" },
@@ -40,9 +39,12 @@ public class GasStationFinder
             var stations = await _requestService.GetDataAsync(searchGas);
 
             if (stations == null || stations.Count == 0)
+            {
+                // FIX: Escape searchGas to prevent HTML injection
                 return "⛽ <b>No Gas Stations Found</b>\n" +
                        $"📍 <i>{EscapeHtml(searchGas)}</i>\n\n" +
                        "No stations found nearby. Try a different address or postal code.";
+            }
 
             // Sort: cheapest first, unknowns last, distance as tiebreaker.
             var sorted = stations
@@ -54,7 +56,7 @@ public class GasStationFinder
             var cheapest = sorted.FirstOrDefault(s => s.Price > 0);
             var sb = new StringBuilder();
 
-            // Header
+            // Header - Escape searchGas here too for consistency
             sb.Append("⛽ <b>Gas Stations</b> · ");
             sb.AppendLine($"<i>{EscapeHtml(searchGas)}</i>");
 
@@ -88,7 +90,7 @@ public class GasStationFinder
         if (string.IsNullOrEmpty(text))
             return text;
 
-        var sb = new StringBuilder(text.Length * 2); // Pre-allocate with reasonable capacity
+        var sb = new StringBuilder(text.Length * 2);
         foreach (char c in text)
         {
             if (HtmlEscapeMap.TryGetValue(c, out var replacement))
@@ -111,7 +113,6 @@ public class StationFormatter : IStationFormatter
 {
     private readonly string[] _medals;
 
-    // Column widths for table rendering
     private static class TableLayout
     {
         public const int Number = 2;
@@ -133,7 +134,7 @@ public class StationFormatter : IStationFormatter
         if (format == OutputFormat.Table)
             return RenderTable(stations);
 
-        var sb = new StringBuilder(stations.Count * 100); // Pre-allocate based on average line length
+        var sb = new StringBuilder(stations.Count * 100);
         for (int i = 0; i < stations.Count; i++)
         {
             sb.Append(RenderStation(stations[i], i, format));
@@ -182,7 +183,6 @@ public class StationFormatter : IStationFormatter
         var sb = new StringBuilder();
         sb.AppendLine("<pre>");
 
-        // Header row with dynamic padding based on constants
         sb.AppendLine(
             $"{"#",-TableLayout.Number} " +
             $"{"Name".PadRight(TableLayout.Name)} " +
@@ -195,17 +195,15 @@ public class StationFormatter : IStationFormatter
         {
             var s = stations[i];
 
-            // Format main row
             var num = $"{i + 1}".PadRight(TableLayout.Number);
-            var name = Truncate(s.Name, TableLayout.Name).PadRight(TableLayout.Name);
-            var price = (s.Price > 0 ? $"{s.Price:F1}¢∕L" : "N/A").PadRight(TableLayout.Price);
+            var name = Truncate(EscapeHtml(s.Name), TableLayout.Name).PadRight(TableLayout.Name);
+            var price = (s.Price > 0 ? $"{s.Price:F1}c" : "N/A").PadRight(TableLayout.Price);
             var dist = (s.Distance > 0 ? $"{s.Distance:F1}km" : "?").PadRight(TableLayout.Distance);
 
             sb.AppendLine($"{num} {name} {price} {dist}");
 
-            // Address line with proper indentation
             var addrMaxLength = TableLayout.TotalWidth - TableLayout.Indent;
-            var addr = Truncate(s.Address, addrMaxLength);
+            var addr = Truncate(EscapeHtml(s.Address), addrMaxLength);
             var mapLink = MapsLink(s.Latitude, s.Longitude, addr);
             sb.AppendLine($"{new string(' ', TableLayout.Indent)}{mapLink}");
         }
@@ -227,7 +225,6 @@ public class StationFormatter : IStationFormatter
         return $"<a href=\"{url}\">{label}</a>";
     }
 
-    // Reuse the same HTML escape logic
     private static readonly Dictionary<char, string> HtmlEscapeMap = new Dictionary<char, string>
     {
         { '&', "&amp;" },

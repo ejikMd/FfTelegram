@@ -146,11 +146,7 @@ public static class WebServer
             await ctx.Response.WriteAsJsonAsync(result);
         });
 
-
         // --- UI ---
-
-        // HEAD on / lets UptimeRobot monitor the root URL with zero HTML overhead.
-        // Returns 200 when the bot is healthy, 503 when stopped.
         app.MapMethods("/", new[] { "GET", "HEAD" }, async ctx =>
         {
             var isRunning = botService.IsInitialized && !botService.IsStopped && !botService.IsShuttingDown;
@@ -158,63 +154,14 @@ public static class WebServer
 
             if (ctx.Request.Method == HttpMethods.Head) return;
 
-            var color  = isRunning ? "green" : "red";
-            var status = botService.IsShuttingDown ? "Shutting Down"
-                       : botService.IsStopped      ? "Stopped"
-                                                   : "Running";
-
             ctx.Response.ContentType = "text/html";
-            await ctx.Response.WriteAsync($@"
-<!DOCTYPE html>
-<html lang='en'>
-<head>
-  <meta charset='utf-8'>
-  <title>Telegram Bot Status</title>
-  <style>
-    body {{ font-family: Arial, sans-serif; padding: 2rem; max-width: 600px; margin: auto; }}
-    .badge {{ color: {color}; font-weight: bold; }}
-    .controls {{ display: flex; gap: .75rem; margin-top: 1rem; flex-wrap: wrap; }}
-    button {{ padding: .5rem 1.2rem; cursor: pointer; border: 1px solid #ccc; border-radius: 4px; font-size: .95rem; }}
-    button:disabled {{ opacity: .45; cursor: not-allowed; }}
-    .btn-start    {{ background: #d4edda; }}
-    .btn-shutdown {{ background: #f8d7da; }}
-  </style>
-</head>
-<body>
-  <h1>🤖 Telegram Bot</h1>
-  <p>Status: <span class='badge'>{status}</span></p>
-  <p>Uptime: {botService.Uptime:g}</p>
-  <p>Messages processed: {botService.MessagesProcessed}</p>
-  <p>
-    <a href='/health'>Health</a> ·
-    <a href='/status'>Status JSON</a> ·
-    <a href='/ready'>Ready</a> ·
-    <a href='/live'>Live</a> ·
-    <a href='/check'>Check</a>
-  </p>
-  <div class='controls'>
-    <button class='btn-start'
-            {(isRunning || botService.IsShuttingDown ? "disabled" : "")}
-            onclick=""fetch('/start',{{method:'POST'}}).then(r=>r.text()).then(t=>{{alert(t);location.reload();}})"">
-      Start Bot
-    </button>
-    <button class='btn-shutdown'
-            {(!isRunning || botService.IsShuttingDown ? "disabled" : "")}
-            onclick=""fetch('/shutdown',{{method:'POST'}}).then(r=>r.text()).then(t=>{{alert(t);location.reload();}})"">
-      Stop Bot
-    </button>
-  </div>
-  <h2 style='margin-top:1.5rem'>🔄 Station Cache Sync</h2>
-  <div class='controls'>
-    <button onclick=""fetch('/sync/unknown',{{method:'POST'}}).then(r=>r.json()).then(t=>{{alert(JSON.stringify(t,null,2));}})"">
-      Sync Unknown
-    </button>
-    <button onclick=""fetch('/sync/all',{{method:'POST'}}).then(r=>r.json()).then(t=>{{alert(JSON.stringify(t,null,2));}})"">
-      Sync All
-    </button>
-  </div>
-</body>
-</html>");
+
+            var page = new StatusPageBuilder()
+                .WithBotService(botService)
+                .WithIsRunning(isRunning)
+                .Build();
+
+            await ctx.Response.WriteAsync(page);
         });
 
         var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";

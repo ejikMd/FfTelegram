@@ -142,6 +142,11 @@ public sealed class MessageRouter
         CallbackQuery callback,
         CancellationToken ct)
     {
+        if (callback.Message?.Chat?.Id is null)
+        {
+            _logger.LogWarning("Callback missing chat ID");
+            return;
+        }
         var chatId = callback.Message?.Chat.Id;
         var data = callback.Data ?? string.Empty;
 

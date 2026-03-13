@@ -27,8 +27,6 @@ public class OpenStreetMapReverseGeocoder : IReverseGeocoder
         try
         {
             string url = $"https://nominatim.openstreetmap.org/reverse?format=json&lat={latitude}&lon={longitude}";
-            if (!HttpClientProvider.Instance.DefaultRequestHeaders.Contains("User-Agent"))
-                HttpClientProvider.Instance.DefaultRequestHeaders.Add("User-Agent", "GasBuddyBot");
 
             var response = await HttpClientProvider.Instance.GetAsync(url);
             if (!response.IsSuccessStatusCode)
