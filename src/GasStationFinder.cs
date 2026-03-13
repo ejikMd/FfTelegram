@@ -9,36 +9,43 @@ public class GasStationFinder
     private readonly IRequestService _requestService;
     private readonly StationFormatterConfig _config;
     private readonly UserFormatStore _formatStore;
+    private readonly IStationFormatter _formatter;
 
     private static readonly string[] Medals = { "🥇", "🥈", "🥉" };
 
-    public GasStationFinder(IRequestService requestService, StationFormatterConfig config, UserFormatStore formatStore)
+    // Pre-compiled HTML escape mappings for better performance
+    private static readonly Dictionary<char, string> HtmlEscapeMap = new Dictionary<char, string>
+    {
+        { '&', "&amp;" },
+        { '<', "&lt;" },
+        { '>', "&gt;" }
+    };
+
+    public GasStationFinder(
+        IRequestService requestService, 
+        StationFormatterConfig config, 
+        UserFormatStore formatStore,
+        IStationFormatter formatter = null)
     {
         _requestService = requestService ?? throw new ArgumentNullException(nameof(requestService));
         _config = config ?? throw new ArgumentNullException(nameof(config));
         _formatStore = formatStore ?? throw new ArgumentNullException(nameof(formatStore));
+        _formatter = formatter ?? new StationFormatter(Medals);
     }
 
     public async Task<string> FindAsync(string searchGas, long chatId = 0)
     {
         try
         {
-            //List<FuelStation> stations = new List<FuelStation>(3);
-            //stations.Add(new FuelStation("Costco GasStation", "9430 Boulevard Taschereau, Brossard, QC J4X 2T7", 45.4485, -73.4892, 153.90m));
-            //stations.Add(new FuelStation("Shell", "4900 Grande Allee, Longueuil, QC J4V 3K9, Canada", 45.5351, -73.4867, 172.90m));        
-            //stations[0].Distance = 1.2m;
-            //stations[1].Distance = 11.2m;
-
             var stations = await _requestService.GetDataAsync(searchGas);
 
             if (stations == null || stations.Count == 0)
                 return "⛽ <b>No Gas Stations Found</b>\n" +
-                       $"📍 <i>{searchGas}</i>\n\n" +
+                       $"📍 <i>{EscapeHtml(searchGas)}</i>\n\n" +
                        "No stations found nearby. Try a different address or postal code.";
 
             // Sort: cheapest first, unknowns last, distance as tiebreaker.
             var sorted = stations
-                //.OrderBy(s => s.ProximityRating)
                 .OrderBy(s => s.Price <= 0 ? decimal.MaxValue : s.Price)
                 .ThenBy(s => s.Distance)
                 .Take(_config.MaxResults > 0 ? _config.MaxResults : int.MaxValue)
@@ -56,13 +63,9 @@ public class GasStationFinder
 
             sb.AppendLine();
 
-            // Station rows
+            // Station rows using formatter service
             var activeFormat = _formatStore.Get(chatId);
-            if (activeFormat == OutputFormat.Table)
-                sb.Append(RenderTable(sorted));
-            else
-                for (int i = 0; i < sorted.Count; i++)
-                    sb.Append(RenderStation(sorted[i], i, activeFormat));
+            sb.Append(_formatter.FormatStations(sorted, activeFormat));
 
             // Footer
             sb.Append($"<i>🔄 {DateTime.Now:MMM d, HH:mm}</i>");
@@ -79,9 +82,66 @@ public class GasStationFinder
         }
     }
 
-    // ── Formatters ────────────────────────────────────────────────────────────
+    // Optimized HTML escaping using StringBuilder
+    private static string EscapeHtml(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+            return text;
 
-    private static string RenderStation(FuelStation s, int index, OutputFormat format) => format switch
+        var sb = new StringBuilder(text.Length * 2); // Pre-allocate with reasonable capacity
+        foreach (char c in text)
+        {
+            if (HtmlEscapeMap.TryGetValue(c, out var replacement))
+                sb.Append(replacement);
+            else
+                sb.Append(c);
+        }
+        return sb.ToString();
+    }
+}
+
+// New formatter service interface
+public interface IStationFormatter
+{
+    string FormatStations(List<FuelStation> stations, OutputFormat format);
+}
+
+// Dedicated formatter implementation
+public class StationFormatter : IStationFormatter
+{
+    private readonly string[] _medals;
+
+    // Column widths for table rendering
+    private static class TableLayout
+    {
+        public const int Number = 2;
+        public const int Name = 15;
+        public const int Price = 7;
+        public const int Distance = 6;
+        public const int Indent = 3;
+
+        public static int TotalWidth => Number + 1 + Name + 1 + Price + 1 + Distance;
+    }
+
+    public StationFormatter(string[] medals)
+    {
+        _medals = medals;
+    }
+
+    public string FormatStations(List<FuelStation> stations, OutputFormat format)
+    {
+        if (format == OutputFormat.Table)
+            return RenderTable(stations);
+
+        var sb = new StringBuilder(stations.Count * 100); // Pre-allocate based on average line length
+        for (int i = 0; i < stations.Count; i++)
+        {
+            sb.Append(RenderStation(stations[i], i, format));
+        }
+        return sb.ToString();
+    }
+
+    private string RenderStation(FuelStation s, int index, OutputFormat format) => format switch
     {
         OutputFormat.Compact => RenderCompact(s, index),
         OutputFormat.Card => RenderCard(s, index),
@@ -89,24 +149,18 @@ public class GasStationFinder
         _ => RenderCompact(s, index),
     };
 
-    /// Compact — one line, location as a linked icon using coordinates.
-    /// 🥇 Costco · 153.9¢∕L · 1.2km · 📍
-    private static string RenderCompact(FuelStation s, int index)
+    private string RenderCompact(FuelStation s, int index)
     {
-        var medal = index < Medals.Length ? Medals[index] : $"{index + 1}.";
+        var medal = index < _medals.Length ? _medals[index] : $"{index + 1}.";
         var price = s.Price > 0 ? $"<b>{s.Price:F1}¢∕L</b>" : "<i>N/A</i>";
         var dist = s.Distance > 0 ? $"{s.Distance:F1}km" : "?km";
         var mapLink = MapsLink(s.Latitude, s.Longitude, "📍");
         return $"{medal} {EscapeHtml(s.Name)} · {price} · {dist} · {mapLink}\n";
     }
 
-    /// Card — three tight lines, address as clickable text using coordinates.
-    /// 🥇 Costco GasStation
-    ///    💵 153.9¢∕L  📏 1.2 km
-    ///    📌 9430 Boulevard Taschereau...
-    private static string RenderCard(FuelStation s, int index)
+    private string RenderCard(FuelStation s, int index)
     {
-        var medal = index < Medals.Length ? Medals[index] : $"{index + 1}.";
+        var medal = index < _medals.Length ? _medals[index] : $"{index + 1}.";
         var price = s.Price > 0 ? $"<b>{s.Price:F1}¢∕L</b>" : "<i>N/A</i>";
         var dist = s.Distance > 0 ? $"  📏 {s.Distance:F1} km" : "";
         var mapLink = MapsLink(s.Latitude, s.Longitude, EscapeHtml(s.Address));
@@ -116,69 +170,56 @@ public class GasStationFinder
                $"   📌 {mapLink}\n";
     }
 
-    /// Minimal — name and price only.
-    /// 🥇 Costco — 153.9¢∕L
-    private static string RenderMinimal(FuelStation s, int index)
+    private string RenderMinimal(FuelStation s, int index)
     {
-        var medal = index < Medals.Length ? Medals[index] : $"{index + 1}.";
+        var medal = index < _medals.Length ? _medals[index] : $"{index + 1}.";
         var price = s.Price > 0 ? $"<b>{s.Price:F1}¢∕L</b>" : "<i>N/A</i>";
         return $"{medal} {EscapeHtml(s.Name)} — {price}\n";
     }
 
-    // ── Table renderer (wraps all rows in <pre>) ─────────────────────────────
-
-    // Column widths (characters). Keep total <= 40 for comfortable mobile display.
-    private const int ColName = 15;
-    private const int ColPrice = 7;
-    private const int ColDist = 6;
-
-    /// Renders all stations as a fixed-width ASCII table inside &lt;pre&gt; tags.
-    ///
-    /// <pre>
-    /// # Name            Price   Dist
-    /// ─────────────────────────────────
-    /// 1 Costco Gas...   153.9   1.2km
-    ///   9430 Boul Tasch...
-    /// 2 Shell            172.9  11.2km
-    ///   4900 Grande Allee...
-    /// </pre>
-    private static string RenderTable(List<FuelStation> stations)
+    private string RenderTable(List<FuelStation> stations)
     {
         var sb = new StringBuilder();
         sb.AppendLine("<pre>");
 
-        // Header row
+        // Header row with dynamic padding based on constants
         sb.AppendLine(
-            $"{"#",-2} {"Name".PadRight(ColName)} {"Price".PadRight(ColPrice)} {"Dist".PadRight(ColDist)}");
-        sb.AppendLine(new string('─', 2 + 1 + ColName + 1 + ColPrice + 1 + ColDist));
+            $"{"#",-TableLayout.Number} " +
+            $"{"Name".PadRight(TableLayout.Name)} " +
+            $"{"Price".PadRight(TableLayout.Price)} " +
+            $"{"Dist".PadRight(TableLayout.Distance)}");
+
+        sb.AppendLine(new string('─', TableLayout.TotalWidth));
 
         for (int i = 0; i < stations.Count; i++)
         {
             var s = stations[i];
-            var num = $"{i + 1}".PadRight(2);
-            var name = Truncate(s.Name, ColName).PadRight(ColName);
-            var price = (s.Price > 0 ? $"{s.Price:F1}c" : "N/A").PadRight(ColPrice);
-            var dist = (s.Distance > 0 ? $"{s.Distance:F1}km" : "?").PadRight(ColDist);
+
+            // Format main row
+            var num = $"{i + 1}".PadRight(TableLayout.Number);
+            var name = Truncate(s.Name, TableLayout.Name).PadRight(TableLayout.Name);
+            var price = (s.Price > 0 ? $"{s.Price:F1}¢∕L" : "N/A").PadRight(TableLayout.Price);
+            var dist = (s.Distance > 0 ? $"{s.Distance:F1}km" : "?").PadRight(TableLayout.Distance);
 
             sb.AppendLine($"{num} {name} {price} {dist}");
 
-            // Address on a second indented line — truncated to fit <pre> width, linked using coordinates
-            var addr = Truncate(s.Address, 2 + 1 + ColName + 1 + ColPrice + 1 + ColDist);
+            // Address line with proper indentation
+            var addrMaxLength = TableLayout.TotalWidth - TableLayout.Indent;
+            var addr = Truncate(s.Address, addrMaxLength);
             var mapLink = MapsLink(s.Latitude, s.Longitude, addr);
-            sb.AppendLine($"   {mapLink}");
+            sb.AppendLine($"{new string(' ', TableLayout.Indent)}{mapLink}");
         }
 
         sb.AppendLine("</pre>");
         return sb.ToString();
     }
 
-    /// Stub so the switch compiles — actual table rendering is done by the bulk overload above.
-    private static string RenderTable(FuelStation s, int index) => string.Empty;
-
-    private static string Truncate(string text, int max) =>
-        text.Length <= max ? text : text[..(max - 1)] + "…";
-
-    // ── Helpers ───────────────────────────────────────────────────────────────
+    private static string Truncate(string text, int max)
+    {
+        if (string.IsNullOrEmpty(text) || text.Length <= max)
+            return text ?? string.Empty;
+        return text[..(max - 1)] + "…";
+    }
 
     private static string MapsLink(double latitude, double longitude, string label)
     {
@@ -186,8 +227,27 @@ public class GasStationFinder
         return $"<a href=\"{url}\">{label}</a>";
     }
 
-    private static string EscapeHtml(string text) =>
-        text.Replace("&", "&amp;")
-            .Replace("<", "&lt;")
-            .Replace(">", "&gt;");
+    // Reuse the same HTML escape logic
+    private static readonly Dictionary<char, string> HtmlEscapeMap = new Dictionary<char, string>
+    {
+        { '&', "&amp;" },
+        { '<', "&lt;" },
+        { '>', "&gt;" }
+    };
+
+    private static string EscapeHtml(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+            return text;
+
+        var sb = new StringBuilder(text.Length * 2);
+        foreach (char c in text)
+        {
+            if (HtmlEscapeMap.TryGetValue(c, out var replacement))
+                sb.Append(replacement);
+            else
+                sb.Append(c);
+        }
+        return sb.ToString();
+    }
 }
